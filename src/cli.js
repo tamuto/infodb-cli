@@ -8,8 +8,8 @@ const gitsync = require('./gitsync')
 const tmpl = require('./template')
 
 program
-    .version('0.0.1')
-    .usage('<cmd> [options] <file ...>')
+    .version('0.0.3')
+    .usage('<cmd> [options]')
 
 program
     .command('docker <start|stop> [file]')
