@@ -6,9 +6,10 @@ const docker = require('./docker')
 const build = require('./build')
 const gitsync = require('./gitsync')
 const tmpl = require('./template')
+const serve = require('./serve')
 
 program
-    .version('0.0.3')
+    .version('0.0.4')
     .usage('<cmd> [options]')
 
 program
@@ -38,5 +39,11 @@ program
     .requiredOption('-i, --input <file>', 'input file')
     .requiredOption('-o, --output <file>', 'output file')
     .action(tmpl.command)
+
+program
+    .command('serve')
+    .description('web server for react-route')
+    .usage('serve [folder]')
+    .action(serve.command)
 
 program.parse(process.argv)
