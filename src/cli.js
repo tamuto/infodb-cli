@@ -9,7 +9,7 @@ const tmpl = require('./template')
 const serve = require('./serve')
 
 program
-    .version('0.0.5')
+    .version('0.0.7')
     .usage('<cmd> [options]')
 
 program
