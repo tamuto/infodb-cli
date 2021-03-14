@@ -9,7 +9,7 @@ const tmpl = require('./template')
 const serve = require('./serve')
 
 program
-    .version('0.0.4')
+    .version('0.0.5')
     .usage('<cmd> [options]')
 
 program
@@ -24,6 +24,7 @@ program
     .option('-o, --output <path>', 'output folder', 'dist')
     .option('--main <name>', 'main script', 'index.html')
     .option('--run-all <name>', 'run npm scripts', 'nothing')
+    .option('--source-maps', 'output source maps')
     .action(build.command)
 
 program

@@ -5,6 +5,7 @@ runAll = require('npm-run-all')
 module.exports.command = (options) => {
     var main = options.main
     var outdir = options.output
+    var sourceMaps = options.sourceMaps
     var outpath = Path.join(process.cwd(), outdir)
 
     const Bundler = require('parcel-bundler')
@@ -14,7 +15,7 @@ module.exports.command = (options) => {
         outDir: outpath,
         outFile: main,
         watch: false,
-        sourceMaps: false
+        sourceMaps: sourceMaps
     }
     async function exec() {
         const bundler = new Bundler(entryFiles, opt)
