@@ -1,6 +1,6 @@
 {
   "name": "@infodb/infodb-cli",
-  "version": "0.0.7",
+  "version": "0.1.0",
   "description": "Command Line Support Tool",
   "author": "infodb.org",
   "license": "MIT",
@@ -14,10 +14,12 @@
   "homepage": "https://github.com/tamuto/infodb-cli#readme",
   "dependencies": {
     "commander": "^6.2.1",
+    "esbuild": "^0.11.20",
     "handlebars": "^4.7.6",
+    "htmlnano": "^1.0.0",
     "http-server": "^0.12.3",
     "npm-run-all": "^4.1.5",
-    "parcel-bundler": "1.12.3",
+    "posthtml": "^0.15.2",
     "yaml": "^1.10.0"
   },
   "bin": "./src/cli.js",
