@@ -11,7 +11,7 @@ const es = require('./es')
 const runall = require('./runall')
 
 program
-  .version('0.1.0', '--version', 'output the current version')
+  .version('0.1.1', '--version', 'output the current version')
   .usage('<cmd> [options]')
 
 program
@@ -52,6 +52,7 @@ program
   .usage('<file> [options]')
   .option('-i --input <file>', 'target file', 'src/index.js')
   .option('-o, --output-dir <dir>', 'output directory', 'dist')
+  .option('--source-map', 'output source map', false)
   .description('esbuild')
   .action(es.command)
 

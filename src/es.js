@@ -4,6 +4,7 @@ const resolver = require('./resolver');
 module.exports.command = (opts) => {
   esbuild.build({
     entryPoints: [opts.input],
+    sourcemap: opts.sourceMap,
     bundle: true,
     loader: {
       '.js': 'jsx'
