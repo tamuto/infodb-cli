@@ -7,7 +7,8 @@ module.exports.command = (opts) => {
     sourcemap: opts.sourceMap,
     bundle: true,
     loader: {
-      '.js': 'jsx'
+      '.js': 'jsx',
+      '.png': 'file'
     },
     outfile: resolver.outpath(opts.input, opts.outputDir),
   }).catch((e) => {
