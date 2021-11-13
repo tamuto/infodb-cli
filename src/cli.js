@@ -11,7 +11,7 @@ const es = require('./es')
 const runall = require('./runall')
 
 program
-  .version('0.1.1', '--version', 'output the current version')
+  .version('0.1.5', '--version', 'output the current version')
   .usage('<cmd> [options]')
 
 program

@@ -1,5 +1,6 @@
 const http = require('http')
 const path = require('path')
+const URL = require('url').URL
 const fs = require('fs')
 const util = require('util')
 
@@ -15,11 +16,11 @@ module.exports.command = (option) => {
     folder = option.folder || 'dist'
 
     http.createServer(async (req, res) => {
-        let url = decodeURI(req.url)
+        const urlpath = new URL(decodeURI(req.url)).pathname
         // 拡張子がなければindex.htmlを返す
         let filepath = folder + '/' + 'index.html'
-        if(path.extname(url) != '') {
-            filepath = folder + '/' + path.basename(url)
+        if(path.extname(urlpath) != '') {
+            filepath = folder + '/' + path.basename(urlpath)
         }
         try {
             const data = await readFile(filepath)
