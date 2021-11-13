@@ -16,7 +16,7 @@ module.exports.command = (option) => {
     folder = option.folder || 'dist'
 
     http.createServer(async (req, res) => {
-        const urlpath = new URL(decodeURI(req.url)).pathname
+        const urlpath = new URL(decodeURI(req.url), req.protocol+"://"+req.headers.host).pathname
         // 拡張子がなければindex.htmlを返す
         let filepath = folder + '/' + 'index.html'
         if(path.extname(urlpath) != '') {
