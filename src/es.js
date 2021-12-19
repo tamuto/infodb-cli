@@ -5,7 +5,8 @@ module.exports.command = (opts) => {
   esbuild.build({
     entryPoints: [opts.input],
     sourcemap: opts.sourceMap,
-    bundle: true,
+    bundle: opts.bundle,
+    minify: opts.minify,
     loader: {
       '.js': 'jsx',
       '.png': 'file'
