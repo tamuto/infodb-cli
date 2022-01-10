@@ -13,8 +13,10 @@
   },
   "homepage": "https://github.com/tamuto/infodb-cli#readme",
   "dependencies": {
+    "adm-zip": "^0.5.9",
     "commander": "^8.3.0",
     "esbuild": "^0.13.12",
+    "follow-redirects": "^1.14.6",
     "handlebars": "^4.7.7",
     "htmlnano": "^1.1.1",
     "http-server": "^14.0.0",

@@ -9,10 +9,17 @@ const serve = require('./serve')
 const minify = require('./minify')
 const es = require('./es')
 const runall = require('./runall')
+const init = require('./init')
 
 program
-  .version('0.1.7', '--version', 'output the current version')
+  .version('0.2.0', '--version', 'output the current version')
   .usage('<cmd> [options]')
+
+program
+  .command('init <prjname>')
+  .description('new project from boilerplate')
+  .option('--boilerplate <url>', 'boilerplate url', 'https://codeload.github.com/tamuto/boilerplate/zip/main')
+  .action(init.command)
 
 program
   .command('docker <start|stop> [file]')
