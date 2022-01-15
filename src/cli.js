@@ -10,9 +10,10 @@ const minify = require('./minify')
 const es = require('./es')
 const runall = require('./runall')
 const init = require('./init')
+const docview = require('./docview') 
 
 program
-  .version('0.2.0', '--version', 'output the current version')
+  .version('0.3.0', '--version', 'output the current version')
   .usage('<cmd> [options]')
 
 program
@@ -69,5 +70,11 @@ program
   .command('runall <name>')
   .description('runall')
   .action(runall.command)
+
+program
+  .command('docview')
+  .usage('docview [options]')
+  .option('-d, --dir <dir>', 'base directory', 'docs')
+  .action(docview.command)
 
 program.parse(process.argv)
