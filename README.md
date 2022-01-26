@@ -27,15 +27,16 @@ npm install @infodb/infodb-cli
 
 ## コマンド一覧
 
-|コマンド|説明|
-|-|-|
-|init    |新規プロジェクトの作成。指定したboilerplateを使用して新規プロジェクトを作成されるコマンド|
-|gitsync |git submoduleの同期用コマンド|
-|template|テンプレートエンジンを利用したjson変換コマンド|
-|serve   |react-routerに対応した簡易httpサーバを起動するコマンド|
-|minify  |htmlをminifyするコマンド。内部ではposthtmlを使用している|
-|es      |EScriptをトランスパイルするコマンド。内部ではesbuildを使用している|
-|runall  |package.jsonの他のスクリプトを実行するコマンド。内部ではnpm-run-allを使用している|
+| コマンド | 説明                                                                                      |
+| -------- | ----------------------------------------------------------------------------------------- |
+| init     | 新規プロジェクトの作成。指定したboilerplateを使用して新規プロジェクトを作成されるコマンド |
+| gitsync  | git submoduleの同期用コマンド                                                             |
+| template | テンプレートエンジンを利用したjson変換コマンド                                            |
+| serve    | react-routerに対応した簡易httpサーバを起動するコマンド                                    |
+| minify   | htmlをminifyするコマンド。内部ではposthtmlを使用している                                  |
+| es       | EScriptをトランスパイルするコマンド。内部ではesbuildを使用している                        |
+| runall   | package.jsonの他のスクリプトを実行するコマンド。内部ではnpm-run-allを使用している         |
+| docview  | Markdown形式のファイル表示用サーバを起動するコマンド。                                    |
 
 ## Example
 
