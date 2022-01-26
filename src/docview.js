@@ -14,6 +14,9 @@ const mimeTypes = {
 }
 
 const make_anchor_key = (value) => {
+    value = value.replaceAll(/<("[^"]*"|'[^']*'|[^'">])*>/g, '')
+    value = value.replaceAll(/[\(\)/]/g, '')
+    value = value.replaceAll(/[\u30a0-\u30ff\u3040-\u309f\u3005-\u3006\u30e0-\u9fcf]+/g, '_')
     return value.toLowerCase()
 }
 
@@ -34,7 +37,7 @@ renderer.heading = (text, level) => {
     }
     ancnt[name] = num + 1
     ancname = `${name}${num}`
-    return `<h${level}>${text}<a name='${ancname}' class='anchor'><span class='header-link'></span></a></h${level}>`
+    return `<h${level}>${text}<a name='${ancname}' class='anchor' href='#${ancname}'><span class='header-link'></span></a></h${level}>`
 }
 
 const html = (title, content) => {
@@ -70,7 +73,8 @@ table {
 }
 th {
     padding: 0.3em 1em;
-    boder: solid 1px grey;
+    border: solid 1px grey;
+    background-color: lightgrey;
 }
 td {
     padding: 0.3em 1em;
@@ -108,7 +112,7 @@ module.exports.command = (option) => {
     http.createServer(async (req, res) => {
         const urlpath = new URL(decodeURI(req.url), req.protocol+"://"+req.headers.host).pathname
 
-        let filepath = option.dir + urlpath + '/index.md'
+        let filepath = option.dir + urlpath + 'index.md'
         if (path.extname(urlpath) != '') {
             filepath = option.dir + urlpath
         }
