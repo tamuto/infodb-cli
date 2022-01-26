@@ -108,7 +108,10 @@ pre>code {
 }
 
 module.exports.command = (option) => {
-    console.log(process.cwd())
+    process.on('SIGINT', function() {
+        console.log( "\nGracefully shutting down from SIGINT (Ctrl-C)" )
+        process.exit(0)
+    })
     http.createServer(async (req, res) => {
         const urlpath = new URL(decodeURI(req.url), req.protocol+"://"+req.headers.host).pathname
 

@@ -13,7 +13,7 @@ const init = require('./init')
 const docview = require('./docview') 
 
 program
-  .version('0.3.0', '--version', 'output the current version')
+  .version('0.3.1', '--version', 'output the current version')
   .usage('<cmd> [options]')
 
 program
