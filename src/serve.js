@@ -36,5 +36,5 @@ module.exports.command = (option) => {
             res.writeHead(404)
             res.end('page is not found')
         }
-    }).listen(port, () => console.log(`Server http://localhost:${port}`));
+    }).listen(port, () => console.log(`Server http://localhost:${port}`))
 }
