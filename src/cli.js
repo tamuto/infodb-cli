@@ -12,7 +12,7 @@ const runall = require('./runall')
 const init = require('./init')
 
 program
-  .version('0.2.0', '--version', 'output the current version')
+  .version('0.2.1', '--version', 'output the current version')
   .usage('<cmd> [options]')
 
 program
@@ -43,7 +43,9 @@ program
 program
   .command('serve')
   .description('web server for react-route')
-  .usage('serve [folder]')
+  .usage('[options]')
+  .option('-d, --dir <dir>', 'webroot dir', 'dist')
+  .option('-p, --port <port>', 'port number', '8080')
   .action(serve.command)
 
 program

@@ -13,7 +13,8 @@ const mimeTypes = {
 }
 
 module.exports.command = (option) => {
-    folder = option.folder || 'dist'
+    folder = option.dir
+    port = parseInt(option.port)
 
     http.createServer(async (req, res) => {
         const urlpath = new URL(decodeURI(req.url), req.protocol+"://"+req.headers.host).pathname
@@ -35,5 +36,5 @@ module.exports.command = (option) => {
             res.writeHead(404)
             res.end('page is not found')
         }
-    }).listen(8080, () => console.log('Server http://localhost:8080'));
+    }).listen(port, () => console.log(`Server http://localhost:${port}`));
 }
