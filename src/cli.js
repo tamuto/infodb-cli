@@ -10,10 +10,11 @@ const minify = require('./minify')
 const es = require('./es')
 const runall = require('./runall')
 const init = require('./init')
-const docview = require('./docview') 
+const docview = require('./docview')
+const shell =require('./shell')
 
 program
-  .version('0.3.2', '--version', 'output the current version')
+  .version('0.4.0', '--version', 'output the current version')
   .usage('<cmd> [options]')
 
 program
@@ -35,7 +36,6 @@ program
 program
   .command('template')
   .description('convert JSON using a template')
-  .usage('template [options]')
   .requiredOption('-t, --template <file>', 'template file')
   .requiredOption('-i, --input <file>', 'input file')
   .requiredOption('-o, --output <file>', 'output file')
@@ -44,22 +44,19 @@ program
 program
   .command('serve')
   .description('web server for react-route')
-  .usage('[options]')
   .option('-d, --dir <dir>', 'webroot dir', 'dist')
   .option('-p, --port <port>', 'port number', '8080')
   .action(serve.command)
 
 program
   .command('minify')
-  .usage('[options]')
   .option('-i --input <file>', 'target file', 'src/index.html')
   .option('-o, --output-dir <dir>', 'output directory', 'dist')
   .description('minify')
   .action(minify.command)
 
 program
-  .command('es')
-  .usage('<file> [options]')
+  .command('es <file>')
   .option('-i --input <file>', 'target file', 'src/index.js')
   .option('-o, --output-dir <dir>', 'output directory', 'dist')
   .option('--no-bundle', 'bundle option', true)
@@ -75,8 +72,12 @@ program
 
 program
   .command('docview')
-  .usage('docview [options]')
   .option('-d, --dir <dir>', 'base directory', 'docs')
   .action(docview.command)
+
+program
+  .command('shell <file>')
+  .requiredOption('-c, --command <cmd>', 'command')
+  .action(shell.command)
 
 program.parse(process.argv)
