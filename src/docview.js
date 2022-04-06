@@ -23,8 +23,9 @@ const make_anchor_key = (value) => {
 var ancnt = {}
 const renderer = new marked.Renderer()
 renderer.code = (code, language) => {
-    if (language == 'marmaid') {
-        return `<div class='mermaid'>${code}</code>`
+    console.log(language)
+    if (language == 'mermaid') {
+        return `<div class='mermaid'>${code}</div>`
     } else {
         return `<pre><code>${code}</code></pre>`
     }
@@ -103,6 +104,7 @@ pre>code {
 <div class='container is-max-desktop'>${content}</div>
 <div class='footer'></div>
 </body>
+<script type='text/javascript' src='https://cdnjs.cloudflare.com/ajax/libs/mermaid/8.14.0/mermaid.min.js'></script>
         `
     )
 }

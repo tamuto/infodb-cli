@@ -14,7 +14,7 @@ const docview = require('./docview')
 const shell =require('./shell')
 
 program
-  .version('0.4.0', '--version', 'output the current version')
+  .version('0.4.2', '--version', 'output the current version')
   .usage('<cmd> [options]')
 
 program
@@ -56,7 +56,7 @@ program
   .action(minify.command)
 
 program
-  .command('es <file>')
+  .command('es')
   .option('-i --input <file>', 'target file', 'src/index.js')
   .option('-o, --output-dir <dir>', 'output directory', 'dist')
   .option('--no-bundle', 'bundle option', true)
