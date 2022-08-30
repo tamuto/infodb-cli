@@ -1,6 +1,6 @@
 {
   "name": "@infodb/infodb-cli",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Command Line Support Tool",
   "author": "infodb.org",
   "license": "MIT",

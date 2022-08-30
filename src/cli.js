@@ -11,10 +11,11 @@ const es = require('./es')
 const runall = require('./runall')
 const init = require('./init')
 const docview = require('./docview')
-const shell =require('./shell')
+const shell = require('./shell')
+const verup = require('./verup')
 
 program
-  .version('0.4.2', '--version', 'output the current version')
+  .version('0.5.0', '--version', 'output the current version')
   .usage('<cmd> [options]')
 
 program
@@ -79,5 +80,9 @@ program
   .command('shell <file>')
   .requiredOption('-c, --command <cmd>', 'command')
   .action(shell.command)
+
+program
+  .command('verup <file>')
+  .action(verup.command)
 
 program.parse(process.argv)

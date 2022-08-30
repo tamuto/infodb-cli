@@ -1,12 +1,28 @@
 const esbuild = require('esbuild')
 const resolver = require('./resolver');
 
+const onResolverPlugin = {
+  name: 'resolver',
+  setup(build) {
+    const path = require('path')
+
+    build.onResolve({ filter: /^~\// }, args => {
+      const newPath = path.join(process.cwd(), 'frontend', args.path.substring(1))
+      if (path.extname(newPath) === '') {
+        return { path: newPath + '.js' }
+      }
+      return { path: newPath }
+    })
+  }
+}
+
 module.exports.command = (opts) => {
   esbuild.build({
     entryPoints: [opts.input],
     sourcemap: opts.sourceMap,
     bundle: opts.bundle,
     minify: opts.minify,
+    plugins: [onResolverPlugin],
     loader: {
       '.js': 'jsx',
       '.png': 'file'

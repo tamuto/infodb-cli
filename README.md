@@ -38,6 +38,7 @@ npm install @infodb/infodb-cli
 | runall   | package.jsonの他のスクリプトを実行するコマンド。内部ではnpm-run-allを使用している         |
 | docview  | Markdown形式のファイル表示用サーバを起動するコマンド。                                    |
 | shell    | 一つ目に指定したコマンドに対して二つ目に指定たファイルの内容を標準入力で入力します。      |
+| verup    | `{"version": 9999}`という形式のjsonファイルを出色します。 |
 
 ### Example
 

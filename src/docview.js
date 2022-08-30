@@ -23,7 +23,6 @@ const make_anchor_key = (value) => {
 var ancnt = {}
 const renderer = new marked.Renderer()
 renderer.code = (code, language) => {
-    console.log(language)
     if (language == 'mermaid') {
         return `<div class='mermaid'>${code}</div>`
     } else {
