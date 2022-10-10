@@ -15,7 +15,7 @@ const shell = require('./shell')
 const verup = require('./verup')
 
 program
-  .version('0.5.0', '--version', 'output the current version')
+  .version('0.6.0', '--version', 'output the current version')
   .usage('<cmd> [options]')
 
 program

@@ -1,6 +1,6 @@
 # infodb-cli
 
-主にpackage.jsonのscripts補助ツールとして利用
+主にpackage.jsonのscripts補助ツールとして利用。
 
 ## 関連プロジェクト
 
@@ -22,7 +22,7 @@
 通常はDevEnviron内に組み込まれているため以下の手順は不要だが、個別に利用する場合には以下のコマンドを実行する。
 
 ```
-npm install @infodb/infodb-cli
+pnpm install @infodb/infodb-cli
 ```
 
 ## コマンド一覧
@@ -57,7 +57,7 @@ npm install @infodb/infodb-cli
 * command line
 
 ```sh
-npm run up
+pnpm run up
 ```
 
 ## コマンド詳細

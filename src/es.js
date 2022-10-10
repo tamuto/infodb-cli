@@ -1,5 +1,6 @@
 const esbuild = require('esbuild')
-const resolver = require('./resolver');
+const { yamlPlugin } = require('esbuild-plugin-yaml')
+const resolver = require('./resolver')
 
 const onResolverPlugin = {
   name: 'resolver',
@@ -22,7 +23,10 @@ module.exports.command = (opts) => {
     sourcemap: opts.sourceMap,
     bundle: opts.bundle,
     minify: opts.minify,
-    plugins: [onResolverPlugin],
+    plugins: [
+      onResolverPlugin,
+      yamlPlugin()
+    ],
     loader: {
       '.js': 'jsx',
       '.png': 'file'
