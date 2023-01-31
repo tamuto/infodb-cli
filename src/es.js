@@ -62,7 +62,9 @@ module.exports.command = (opts) => {
     ],
     loader: {
       '.js': 'jsx',
-      '.png': 'file'
+      '.png': 'file',
+      '.jpg': 'file',
+      '.jpeg': 'file'
     },
     outfile: resolver.outpath(opts.input, opts.outputDir),
   }).catch((e) => {

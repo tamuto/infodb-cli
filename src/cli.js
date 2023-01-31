@@ -13,9 +13,10 @@ const init = require('./init')
 const docview = require('./docview')
 const shell = require('./shell')
 const verup = require('./verup')
+const nbenv = require('./nbenv')
 
 program
-  .version('0.7.0', '--version', 'output the current version')
+  .version('0.9.0', '--version', 'output the current version')
   .usage('<cmd> [options]')
 
 program
@@ -84,5 +85,9 @@ program
 program
   .command('verup <file>')
   .action(verup.command)
+
+program
+  .command('nbenv')
+  .action(nbenv.command)
 
 program.parse(process.argv)
