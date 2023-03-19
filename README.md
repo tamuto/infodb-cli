@@ -38,7 +38,7 @@ pnpm install @infodb/infodb-cli
 | runall   | package.jsonの他のスクリプトを実行するコマンド。内部ではnpm-run-allを使用している         |
 | docview  | Markdown形式のファイル表示用サーバを起動するコマンド。                                    |
 | shell    | 一つ目に指定したコマンドに対して二つ目に指定たファイルの内容を標準入力で入力します。      |
-| verup    | `{"version": 9999}`という形式のjsonファイルを出色します。 |
+| verup    | `{"version": 9999}`という形式のjsonファイルを出色します。                                 |
 
 ### Example
 
@@ -71,3 +71,27 @@ pnpm run up
 ```
 infodb-cli shell -c "ssh-aws.sh profile server" setup.cmd
 ```
+
+### es
+
+* ESBuildを起動します。
+
+| オプション            | デフォルト   | 説明                                                        |
+| --------------------- | ------------ | ----------------------------------------------------------- |
+| -i --input <file>     | src/index.js | エントリーポイントとなるJavascriptファイルを指定します。    |
+| -o --output-dir <dir> | dist         | トランスパイル後の出力フォルダを指定します。                |
+| --bundle              | true         | 外部ライブラリをバンドルするオプションです。                |
+| --minify              | false        | トランスパイル時に縮小化します。                            |
+| --source-map          | false        | トランスパイル時にソースマップを出力します。                |
+| --emotion <shim>      | undefined    | React.createElementではなく、emotion cssのjsxを使用します。 |
+
+* --emotion指定時の対応
+  * 以下のファイルをソースフォルダに`emotion-shim.js`と配置し、オプションで該当ファイルを指定します。
+
+```
+import { jsx } from '@emotion/react'
+export { jsx }
+```
+
+  * 実行時は`infodb-cli es --emotion src/emotion-shim.js`と指定する。
+  * ファイル名は任意。
