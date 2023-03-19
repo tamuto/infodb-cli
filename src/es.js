@@ -94,6 +94,7 @@ const onResolverPlugin = {
 }
 
 module.exports.command = (opts) => {
+  console.log('###', __dirname)
   esbuild.build({
     entryPoints: [opts.input],
     sourcemap: opts.sourceMap,
@@ -109,6 +110,8 @@ module.exports.command = (opts) => {
       '.jpg': 'file',
       '.jpeg': 'file'
     },
+    jsxFactory: 'jsx',
+    inject: [`${__dirname}/ts/emotion-shim.ts`],
     outfile: resolver.outpath(opts.input, opts.outputDir),
   }).catch((e) => {
     console.log(e)
