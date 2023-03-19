@@ -89,8 +89,9 @@ infodb-cli shell -c "ssh-aws.sh profile server" setup.cmd
   * 以下のファイルをソースフォルダに`emotion-shim.js`と配置し、オプションで該当ファイルを指定します。
 
 ```
+import { Fragment } from 'react'
 import { jsx } from '@emotion/react'
-export { jsx }
+export { jsx, Fragment }
 ```
 
   * 実行時は`infodb-cli es --emotion src/emotion-shim.js`と指定する。
