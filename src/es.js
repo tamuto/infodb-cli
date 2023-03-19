@@ -98,6 +98,7 @@ module.exports.command = (opts) => {
   if (opts.emotion) {
     emotion = {
       jsxFactory: 'jsx',
+      jsxFragment: 'Fragment',
       inject: [opts.emotion]
     }
   }

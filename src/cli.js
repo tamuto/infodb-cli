@@ -16,7 +16,7 @@ const verup = require('./verup')
 const nbenv = require('./nbenv')
 
 program
-  .version('0.11.1', '--version', 'output the current version')
+  .version('0.11.2', '--version', 'output the current version')
   .usage('<cmd> [options]')
 
 program
