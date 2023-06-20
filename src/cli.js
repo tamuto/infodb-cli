@@ -14,9 +14,10 @@ const docview = require('./docview')
 const shell = require('./shell')
 const verup = require('./verup')
 const nbenv = require('./nbenv')
+const pack = require('./pack')
 
 program
-  .version('0.11.2', '--version', 'output the current version')
+  .version('0.12.0', '--version', 'output the current version')
   .usage('<cmd> [options]')
 
 program
@@ -90,5 +91,15 @@ program
 program
   .command('nbenv')
   .action(nbenv.command)
+
+program
+  .command('pack')
+  .option('--input <dir>', 'input directory', '.')
+  .option('--output <dir>', 'output directory', 'dist')
+  .option('--add-version', '', false)
+  .option('--info', '', false)
+  .option('--verbose', '', false)
+  .option('--static-date-modified', '', false)
+  .action(pack.command)
 
 program.parse(process.argv)

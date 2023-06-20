@@ -1,6 +1,6 @@
 {
   "name": "@infodb/infodb-cli",
-  "version": "0.11.2",
+  "version": "0.12.0",
   "description": "Command Line Support Tool",
   "author": "infodb.org",
   "license": "MIT",
@@ -22,6 +22,7 @@
     "htmlnano": "^2.0.3",
     "http-server": "^14.1.1",
     "marked": "^4.2.3",
+    "npm-pack-zip": "^1.3.0",
     "npm-run-all": "^4.1.5",
     "posthtml": "^0.16.6",
     "yaml": "^2.1.3"
