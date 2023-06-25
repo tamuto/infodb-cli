@@ -17,7 +17,7 @@ const nbenv = require('./nbenv')
 const pack = require('./pack')
 
 program
-  .version('0.12.0', '--version', 'output the current version')
+  .version('0.13.3', '--version', 'output the current version')
   .usage('<cmd> [options]')
 
 program
@@ -66,6 +66,9 @@ program
   .option('--minify', 'minify', false)
   .option('--source-map', 'output source map', false)
   .option('--emotion <shim>', undefined)
+  .option('--platform <platform>', 'target platform', 'browser')
+  .option('--target <target>', 'target generare code.', 'esnext')
+  .option('--format <format>', 'output format')
   .description('esbuild')
   .action(es.command)
 

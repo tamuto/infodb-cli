@@ -107,6 +107,9 @@ module.exports.command = (opts) => {
     entryPoints: [opts.input],
     sourcemap: opts.sourceMap,
     bundle: opts.bundle,
+    platform: opts.platform,
+    target: opts.target,
+    format: opts.format,
     minify: opts.minify,
     plugins: [
       onResolverPlugin,
