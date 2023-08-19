@@ -1,7 +1,6 @@
 const fs = require('fs')
 const readline = require('readline')
 const { spawn } = require('child_process')
-const { process } = require('htmlnano')
 
 async function* g(stream) {
   reader = readline.createInterface({ input: stream })
