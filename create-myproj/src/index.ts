@@ -14,7 +14,7 @@ function mapESLintTemplate(templateName: string): ESLintTemplateName {
 
 create({
 	root: path.resolve(__dirname, ".."),
-	name: "myproj",
+	name: "rspack with shadcn/ui",
 	templates: ["react-ts"],
 	skipFiles: [".npmignore"],
 	getTemplateName,
