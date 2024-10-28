@@ -14,7 +14,7 @@ Rspackを用いたReactプロジェクトを迅速に作成するためのスキ
 
 ```bash
 # プロジェクトの作成
-pnpm create @infodb/myproj@latest my-app
+pnpm create @infodb/myproj@latest -d my-app
 
 # ディレクトリに移動
 cd my-app
@@ -26,7 +26,7 @@ pnpm install
 pnpm dev
 ```
 
-## プロジェクト構造
+## 作成されるディレクトリ構造
 
 ```
 my-app/
