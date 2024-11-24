@@ -1,6 +1,6 @@
 {
 	"name": "@infodb/create-myproj",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"homepage": "https://github.com/tamuto/infodb-cli/",
 	"bugs": "https://github.com/tamuto/infodb-cli/issues",
 	"repository": {
