@@ -1,15 +1,34 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { type Argv, type ESLintTemplateName, create } from "create-rstack";
+import {
+	type Argv,
+	type ESLintTemplateName,
+	create,
+	checkCancel,
+	select,
+} from "create-rstack";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function getTemplateName({ template }: Argv) {
-	return "react-ts";
+	if (typeof template === "string") {
+		return template;
+	}
+
+	const tmpl = checkCancel<string>(
+		await select({
+			message: "Select a template",
+			options: [
+				{ value: "react-ts", label: "React with TypeScript" },
+				{ value: "tanstack-router", label: "TanStack Router" },
+			],
+		}),
+	);
+	return tmpl;
 }
 
 function mapESLintTemplate(templateName: string): ESLintTemplateName {
-	return "react-ts";
+	return templateName as ESLintTemplateName;
 }
 
 create({
