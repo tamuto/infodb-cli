@@ -59,7 +59,7 @@ pnpm create @infodb/myproj@latest
 
 **含まれる技術スタック:**
 - React 19 + TypeScript
-- TailwindCSS 4.1.8
+- TailwindCSS 4.1.10
 - shadcn/ui (New York style)
 - Rspack (Rsbuild)
 - PostCSS
@@ -75,7 +75,7 @@ pnpm create @infodb/myproj@latest
 
 **含まれる技術スタック:**
 - 上記のreact-tsに加えて
-- TanStack Router 1.120.13
+- TanStack Router 1.121.12
 - Router DevTools
 - ファイルベースルーティング
 

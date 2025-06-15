@@ -4,6 +4,42 @@
 
 このフォーマットは[Keep a Changelog](https://keepachangelog.com/ja/1.0.0/)に基づいており、このプロジェクトは[Semantic Versioning](https://semver.org/spec/v2.0.0.html)に準拠しています。
 
+## [1.4.0] - 2025-12-15
+
+### 変更
+- **TanStack Router テンプレート構造更新**
+  - lazy routesから直接routesに変更（`about.lazy.tsx` → `about.tsx`、`index.lazy.tsx` → `index.tsx`）
+  - API変更: `createLazyFileRoute` → `createFileRoute`
+  - プラグイン設定更新: より詳細な設定オプション追加
+  - DevToolsパッケージ名変更: `@tanstack/router-devtools` → `@tanstack/react-router-devtools`
+  - 自動生成ルートツリーの構造を最新版に対応
+
+### 依存関係更新
+- `@tailwindcss/postcss`: ^4.1.8 → ^4.1.10
+- `tailwindcss`: ^4.1.8 → ^4.1.10
+- `lucide-react`: ^0.511.0 → ^0.515.0
+- `tailwind-merge`: ^3.3.0 → ^3.3.1
+- `tw-animate-css`: ^1.3.2 → ^1.3.4
+- `@rsbuild/plugin-react`: ^1.3.1 → ^1.3.2
+- `@types/react`: ^19.1.6 → ^19.1.8
+- `@types/react-dom`: ^19.1.5 → ^19.1.6
+- `@tanstack/react-router`: ^1.120.13 → ^1.121.12
+- `@tanstack/react-router-devtools`: ^1.120.13 → ^1.121.12
+- `@tanstack/router-plugin`: ^1.120.13 → ^1.121.13
+
+### 追加
+- **pnpm設定最適化**: `@tailwindcss/oxide`の依存関係管理を追加
+- **Rspack設定強化**: HTMLアセット処理ルールを追加
+- **技術ドキュメント**: CLAUDE.mdにv1.4.0の変更点詳細を追加
+
+### 技術仕様
+- React 19.1.0サポート（継続）
+- TailwindCSS 4.1.10対応
+- Rsbuild 1.3.22（Rspackベース）
+- shadcn/ui New Yorkスタイル
+- TanStack Router 1.121.12
+- TypeScript 5.6.3
+
 ## [1.3.0] - 2025-05-31
 
 ### 追加

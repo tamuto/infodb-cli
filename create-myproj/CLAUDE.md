@@ -6,7 +6,7 @@
 
 ### 基本情報
 - **プロジェクト名**: `@infodb/create-myproj`
-- **バージョン**: 1.3.0
+- **バージョン**: 1.4.0
 - **作者**: tamuto <tamuto@infodb.jp>
 - **リポジトリ**: https://github.com/tamuto/infodb-cli
 - **ライセンス**: MIT
@@ -61,14 +61,14 @@ create-myproj/
 ### 生成されるプロジェクト
 - **React**: 19.1.0（最新版）
 - **ビルドツール**: Rsbuild v1.3.22（Rspackベース）
-- **スタイリング**: TailwindCSS v4.1.8
+- **スタイリング**: TailwindCSS v4.1.10
 - **UIライブラリ**: shadcn/ui（New Yorkスタイル）
 - **アイコン**: Lucide React, Radix UI Icons
 - **ユーティリティ**: class-variance-authority, clsx, tailwind-merge
 
 ### TanStack Routerテンプレート追加技術
-- **ルーター**: TanStack Router v1.120.13
-- **開発ツール**: Router DevTools, Router Plugin
+- **ルーター**: TanStack Router v1.121.12
+- **開発ツール**: React Router DevTools, Router Plugin
 
 ## 📋 利用可能なテンプレート
 
@@ -162,6 +162,28 @@ pnpm create file:. -d test-react --template react-ts
 pnpm create file:. -d test-router --template tanstack-router
 ```
 
+## 📋 v1.4.0の主要変更点
+
+### 依存関係更新
+- **TailwindCSS**: v4.1.8 → v4.1.10
+- **lucide-react**: v0.511.0 → v0.515.0  
+- **@tanstack/react-router**: v1.120.13 → v1.121.12
+- **@rsbuild/plugin-react**: v1.3.1 → v1.3.2
+- その他マイナーバージョンアップデート
+
+### TanStack Router重要な変更
+- **ルートファイル構造変更**: lazy routesから直接routesに変更
+  - `about.lazy.tsx` → `about.tsx`
+  - `index.lazy.tsx` → `index.tsx`
+  - API: `createLazyFileRoute` → `createFileRoute`
+- **プラグイン設定更新**: `TanStackRouterRspack()` → `tanstackRouter({target: 'react', autoCodeSplitting: true})`
+- **DevToolsパッケージ名変更**: `@tanstack/router-devtools` → `@tanstack/react-router-devtools`
+- **自動生成ルートツリー**: 構造が大幅に変更
+
+### ビルド設定追加
+- **pnpm設定**: `@tailwindcss/oxide`の依存関係管理を追加
+- **Rspack設定**: HTMLアセット処理ルールを追加
+
 ## 🔍 今後の改善可能性
 
 ### 短期的改善
@@ -196,5 +218,5 @@ pnpm create file:. -d test-router --template tanstack-router
 
 ---
 
-**最終更新**: 2025-05-31  
+**最終更新**: 2025年12月15日  
 **次回メンテナンス推奨**: 3ヶ月後（依存関係更新チェック）
