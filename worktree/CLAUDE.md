@@ -93,3 +93,22 @@ npm run start rm <workspace-name> <branch-name>
 - Removes worktree using git worktree remove
 - Removes worktree entry from specified workspace file
 - Handles force removal for corrupted worktrees
+
+## Version Management
+
+When updating the version, make sure to update both files:
+
+1. **package.json**: Update the `version` field
+2. **src/index.ts**: Update the `.version()` call in the CLI program setup
+
+### Version Update Steps
+```bash
+# 1. Update version in both files
+# package.json: "version": "X.Y.Z"
+# src/index.ts: .version('X.Y.Z')
+
+# 2. Commit and push changes
+git add package.json src/index.ts
+git commit -m "Update version to X.Y.Z"
+git push
+```

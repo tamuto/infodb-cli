@@ -10,7 +10,7 @@ const program = new Command();
 program
   .name('@infodb/worktree')
   .description('CLI tool to manage git worktrees and VSCode workspace files')
-  .version('1.1.0');
+  .version('1.3.0');
 
 program
   .command('add')
