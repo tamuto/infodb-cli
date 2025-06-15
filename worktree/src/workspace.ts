@@ -48,16 +48,15 @@ export function findWorkspaceFiles(): string[] {
   return [...new Set(workspaceFiles)]; // Remove duplicates
 }
 
-function createEmptyWorkspace(currentRepoPath: string, workspaceDir: string): WorkspaceConfig {
-  // Calculate relative path from workspace file to current repository
-  const relativePath = path.relative(workspaceDir, currentRepoPath);
+function createEmptyWorkspace(currentRepoPath: string): WorkspaceConfig {
+  // Use absolute path for current repository
   const repoName = path.basename(currentRepoPath);
   
   return {
     folders: [
       {
         name: repoName,
-        path: relativePath
+        path: currentRepoPath
       }
     ],
     settings: {},
@@ -67,31 +66,46 @@ function createEmptyWorkspace(currentRepoPath: string, workspaceDir: string): Wo
   };
 }
 
-export async function addToWorkspace(workspaceFile: string, worktreePath: string): Promise<string | null> {
+function resolveWorkspaceFile(workspaceFile: string, forCreation: boolean = false): string {
   // Use provided workspace file with normalized extension
   let targetWorkspaceFile = normalizeWorkspaceFileName(workspaceFile);
-  let isNewFile = false;
   
   // If it's not an absolute path, try to find it in the search directories
   if (!path.isAbsolute(targetWorkspaceFile)) {
-    const availableWorkspaces = findWorkspaceFiles();
     const fileName = path.basename(targetWorkspaceFile);
     
-    // Find matching workspace file
-    const matchingWorkspace = availableWorkspaces.find(ws => 
-      path.basename(ws) === fileName
-    );
+    if (!forCreation) {
+      // For existing files, search in available workspaces first
+      const availableWorkspaces = findWorkspaceFiles();
+      const matchingWorkspace = availableWorkspaces.find(ws => 
+        path.basename(ws) === fileName
+      );
+      
+      if (matchingWorkspace) {
+        return matchingWorkspace;
+      }
+    }
     
-    if (matchingWorkspace) {
-      targetWorkspaceFile = matchingWorkspace;
+    // For new files or when not found, prefer INFODB_WORKSPACE_DIR
+    const envWorkspaceDir = process.env.INFODB_WORKSPACE_DIR;
+    if (envWorkspaceDir && existsSync(envWorkspaceDir)) {
+      targetWorkspaceFile = path.join(envWorkspaceDir, fileName);
     } else {
-      // Try to resolve relative to current directory
       targetWorkspaceFile = path.resolve(targetWorkspaceFile);
     }
   }
   
-  // Check if workspace file exists, if not mark for creation
+  return targetWorkspaceFile;
+}
+
+export async function addToWorkspace(workspaceFile: string, worktreePath: string): Promise<string | null> {
+  // First try to find existing workspace file
+  let targetWorkspaceFile = resolveWorkspaceFile(workspaceFile, false);
+  let isNewFile = false;
+  
+  // Check if workspace file exists, if not resolve for creation
   if (!existsSync(targetWorkspaceFile)) {
+    targetWorkspaceFile = resolveWorkspaceFile(workspaceFile, true);
     isNewFile = true;
     console.log(`📝 Creating new workspace file: ${path.basename(targetWorkspaceFile)}`);
   }
@@ -104,10 +118,9 @@ export async function addToWorkspace(workspaceFile: string, worktreePath: string
   if (isNewFile) {
     // Get current repository path for new workspace
     const currentRepoPath = execSync('git rev-parse --show-toplevel', { encoding: 'utf8' }).trim();
-    const workspaceDir = path.dirname(absoluteWorkspacePath);
     
     // Create new workspace configuration with current repo
-    workspaceConfig = createEmptyWorkspace(currentRepoPath, workspaceDir);
+    workspaceConfig = createEmptyWorkspace(currentRepoPath);
   } else {
     // Read existing workspace file
     try {
@@ -126,14 +139,12 @@ export async function addToWorkspace(workspaceFile: string, worktreePath: string
   // Get the folder name from the path
   const folderName = path.basename(worktreePath);
   
-  // Convert absolute path to relative path from workspace file location
-  const workspaceDir = path.dirname(absoluteWorkspacePath);
-  const relativePath = path.relative(workspaceDir, worktreePath);
+  // Use full path for workspace folder
+  const folderPath = worktreePath;
 
   // Check if this path is already in the workspace
   const existingFolder = workspaceConfig.folders.find(folder => {
-    const absoluteFolderPath = path.resolve(workspaceDir, folder.path);
-    return absoluteFolderPath === path.resolve(worktreePath);
+    return path.resolve(folder.path) === path.resolve(worktreePath);
   });
 
   if (existingFolder) {
@@ -144,8 +155,11 @@ export async function addToWorkspace(workspaceFile: string, worktreePath: string
   // Add the new folder
   workspaceConfig.folders.push({
     name: folderName,
-    path: relativePath
+    path: folderPath
   });
+
+  // Sort folders by name
+  workspaceConfig.folders.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
   // Write the updated workspace configuration
   try {
@@ -158,26 +172,7 @@ export async function addToWorkspace(workspaceFile: string, worktreePath: string
 }
 
 export async function removeFromWorkspace(workspaceFile: string, worktreePath: string): Promise<string | null> {
-  // Use provided workspace file with normalized extension
-  let targetWorkspaceFile = normalizeWorkspaceFileName(workspaceFile);
-  
-  // If it's not an absolute path, try to find it in the search directories
-  if (!path.isAbsolute(targetWorkspaceFile)) {
-    const availableWorkspaces = findWorkspaceFiles();
-    const fileName = path.basename(targetWorkspaceFile);
-    
-    // Find matching workspace file
-    const matchingWorkspace = availableWorkspaces.find(ws => 
-      path.basename(ws) === fileName
-    );
-    
-    if (matchingWorkspace) {
-      targetWorkspaceFile = matchingWorkspace;
-    } else {
-      // Try to resolve relative to current directory
-      targetWorkspaceFile = path.resolve(targetWorkspaceFile);
-    }
-  }
+  let targetWorkspaceFile = resolveWorkspaceFile(workspaceFile);
   
   // Check if workspace file exists
   if (!existsSync(targetWorkspaceFile)) {
@@ -200,15 +195,10 @@ export async function removeFromWorkspace(workspaceFile: string, worktreePath: s
     workspaceConfig.folders = [];
   }
 
-  // Convert worktree path to the path format used in workspace
-  const workspaceDir = path.dirname(absoluteWorkspacePath);
-  const relativePath = path.relative(workspaceDir, worktreePath);
-  
   // Find and remove the folder
   const initialLength = workspaceConfig.folders.length;
   workspaceConfig.folders = workspaceConfig.folders.filter(folder => {
-    const absoluteFolderPath = path.resolve(workspaceDir, folder.path);
-    return absoluteFolderPath !== path.resolve(worktreePath);
+    return path.resolve(folder.path) !== path.resolve(worktreePath);
   });
 
   if (workspaceConfig.folders.length === initialLength) {
