@@ -24,5 +24,8 @@
   "files": [
     "dist/**/*",
     "bin/**/*"
-  ]
+  ],
+	"publishConfig": {
+		"access": "public"
+	}
 }
