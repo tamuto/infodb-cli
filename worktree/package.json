@@ -1,0 +1,28 @@
+{
+  "name": "@infodb/worktree",
+  "version": "1.0.0",
+  "description": "CLI tool to manage git worktrees and VSCode workspace files",
+  "main": "dist/index.js",
+  "bin": {
+    "infodb-worktree": "./bin/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js"
+  },
+  "keywords": ["git", "worktree", "vscode", "workspace", "cli"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist/**/*",
+    "bin/**/*"
+  ]
+}
