@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This is a TypeScript CLI tool that manages git worktrees and VSCode workspace files. The tool creates worktrees with a `{project}.{branch}` naming pattern and automatically manages VSCode workspace file integration.
+This is a TypeScript CLI tool that manages git worktrees and VSCode workspace files. The tool creates worktrees with a `{project}.{branch}` naming pattern and automatically manages VSCode workspace file integration. It supports both creating (`add`) and removing (`remove`) worktrees with workspace integration.
 
 ## Development Commands
 
@@ -17,16 +17,17 @@ npm run build
 npm run dev
 
 # Test the CLI locally (after build)
-npm run start <branch-name> [options]
+npm run start add <workspace-name> <branch-name> [options]
+npm run start remove <workspace-name> <branch-name>
 ```
 
 ## Project Structure
 
 ```
 src/
-├── index.ts        # Main CLI entry point with commander.js
-├── worktree.ts     # Git worktree creation logic
-├── workspace.ts    # VSCode workspace file management
+├── index.ts        # Main CLI entry point with commander.js (add/remove commands)
+├── worktree.ts     # Git worktree creation and removal logic
+├── workspace.ts    # VSCode workspace file management (add/remove from workspace)
 └── utils.ts        # Utility functions (project name detection, sanitization)
 ```
 
@@ -34,9 +35,11 @@ src/
 
 1. **Project Name Detection**: Extracts from git remote URL or uses directory name
 2. **Branch Name Sanitization**: Converts `/` to `-` and removes invalid characters
-3. **Workspace Auto-detection**: Searches in `INFODB_WORKSPACE_DIR` env var and adjacent directories
+3. **Workspace Management**: Searches in `INFODB_WORKSPACE_DIR` env var and adjacent directories
 4. **Extension Normalization**: Automatically adds `.code-workspace` extension when omitted
-5. **Workspace File Creation**: Creates new workspace files when `-w` option specifies non-existing file
+5. **Workspace File Creation**: Creates new workspace files when specified workspace doesn't exist
+6. **Worktree Creation**: Creates worktrees and adds them to specified workspace files
+7. **Worktree Removal**: Removes worktrees and cleans them up from workspace files
 
 ## Testing Notes
 
@@ -44,6 +47,10 @@ src/
 - Test workspace detection with and without environment variables
 - Test both existing and non-existing branches
 - Test with different git repository setups (with/without remotes)
+- Test add command: `npm run start add my-workspace feature/test`
+- Test remove command: `npm run start remove my-workspace feature/test`
+- Test with custom directory names
+- Test workspace file creation and cleanup
 
 ## Error Handling
 
@@ -51,8 +58,10 @@ The tool handles:
 - Invalid git repositories
 - Missing workspace files
 - Directory conflicts
-- Multiple workspace files (requires explicit selection)
+- Worktree not found for removal
 - Branch name validation
+- Workspace file parsing errors
+- Force removal of corrupted worktrees
 
 ## Environment Variables
 
@@ -63,3 +72,24 @@ The tool handles:
 - `dist/` directory contains compiled JavaScript
 - `bin/cli.js` is the executable entry point
 - Type declarations are generated for library usage
+
+## CLI Commands
+
+### Add Command
+```bash
+npm run start add <workspace-name> <branch-name> [options]
+```
+- Creates worktree with `{project}.{branch}` naming pattern
+- Adds worktree to specified workspace file
+- Creates workspace file if it doesn't exist
+- Options: `-d, --directory` for custom directory name
+
+### Remove Command
+```bash
+npm run start remove <workspace-name> <branch-name>
+# or
+npm run start rm <workspace-name> <branch-name>
+```
+- Removes worktree using git worktree remove
+- Removes worktree entry from specified workspace file
+- Handles force removal for corrupted worktrees

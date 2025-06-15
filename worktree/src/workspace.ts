@@ -67,37 +67,33 @@ function createEmptyWorkspace(currentRepoPath: string, workspaceDir: string): Wo
   };
 }
 
-export async function addToWorkspace(workspaceFile: string | null, worktreePath: string): Promise<string | null> {
-  let targetWorkspaceFile: string;
+export async function addToWorkspace(workspaceFile: string, worktreePath: string): Promise<string | null> {
+  // Use provided workspace file with normalized extension
+  let targetWorkspaceFile = normalizeWorkspaceFileName(workspaceFile);
   let isNewFile = false;
   
-  if (workspaceFile) {
-    // Use provided workspace file with normalized extension
-    targetWorkspaceFile = normalizeWorkspaceFileName(workspaceFile);
+  // If it's not an absolute path, try to find it in the search directories
+  if (!path.isAbsolute(targetWorkspaceFile)) {
+    const availableWorkspaces = findWorkspaceFiles();
+    const fileName = path.basename(targetWorkspaceFile);
     
-    // If it's not an absolute path, resolve it
-    if (!path.isAbsolute(targetWorkspaceFile)) {
+    // Find matching workspace file
+    const matchingWorkspace = availableWorkspaces.find(ws => 
+      path.basename(ws) === fileName
+    );
+    
+    if (matchingWorkspace) {
+      targetWorkspaceFile = matchingWorkspace;
+    } else {
+      // Try to resolve relative to current directory
       targetWorkspaceFile = path.resolve(targetWorkspaceFile);
     }
-    
-    // Check if workspace file exists, if not mark for creation
-    if (!existsSync(targetWorkspaceFile)) {
-      isNewFile = true;
-      console.log(`📝 Creating new workspace file: ${path.basename(targetWorkspaceFile)}`);
-    }
-  } else {
-    // Auto-detect workspace file
-    const availableWorkspaces = findWorkspaceFiles();
-    
-    if (availableWorkspaces.length === 0) {
-      return null; // No workspace file found
-    }
-    
-    if (availableWorkspaces.length > 1) {
-      throw new Error(`Multiple workspace files found. Please specify one with -w option:\n${availableWorkspaces.map(f => `  - ${path.basename(f)}`).join('\n')}`);
-    }
-    
-    targetWorkspaceFile = availableWorkspaces[0];
+  }
+  
+  // Check if workspace file exists, if not mark for creation
+  if (!existsSync(targetWorkspaceFile)) {
+    isNewFile = true;
+    console.log(`📝 Creating new workspace file: ${path.basename(targetWorkspaceFile)}`);
   }
   
   const absoluteWorkspacePath = targetWorkspaceFile;
@@ -150,6 +146,76 @@ export async function addToWorkspace(workspaceFile: string | null, worktreePath:
     name: folderName,
     path: relativePath
   });
+
+  // Write the updated workspace configuration
+  try {
+    writeFileSync(absoluteWorkspacePath, JSON.stringify(workspaceConfig, null, 2));
+  } catch (error) {
+    throw new Error(`Failed to write workspace file: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  
+  return absoluteWorkspacePath;
+}
+
+export async function removeFromWorkspace(workspaceFile: string, worktreePath: string): Promise<string | null> {
+  // Use provided workspace file with normalized extension
+  let targetWorkspaceFile = normalizeWorkspaceFileName(workspaceFile);
+  
+  // If it's not an absolute path, try to find it in the search directories
+  if (!path.isAbsolute(targetWorkspaceFile)) {
+    const availableWorkspaces = findWorkspaceFiles();
+    const fileName = path.basename(targetWorkspaceFile);
+    
+    // Find matching workspace file
+    const matchingWorkspace = availableWorkspaces.find(ws => 
+      path.basename(ws) === fileName
+    );
+    
+    if (matchingWorkspace) {
+      targetWorkspaceFile = matchingWorkspace;
+    } else {
+      // Try to resolve relative to current directory
+      targetWorkspaceFile = path.resolve(targetWorkspaceFile);
+    }
+  }
+  
+  // Check if workspace file exists
+  if (!existsSync(targetWorkspaceFile)) {
+    throw new Error(`Workspace file not found: ${path.basename(targetWorkspaceFile)}`);
+  }
+  
+  const absoluteWorkspacePath = targetWorkspaceFile;
+
+  // Read existing workspace configuration
+  let workspaceConfig: WorkspaceConfig;
+  try {
+    const content = readFileSync(absoluteWorkspacePath, 'utf8');
+    workspaceConfig = JSON.parse(content);
+  } catch (error) {
+    throw new Error(`Failed to parse workspace file: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  // Ensure folders array exists
+  if (!workspaceConfig.folders) {
+    workspaceConfig.folders = [];
+  }
+
+  // Convert worktree path to the path format used in workspace
+  const workspaceDir = path.dirname(absoluteWorkspacePath);
+  const relativePath = path.relative(workspaceDir, worktreePath);
+  
+  // Find and remove the folder
+  const initialLength = workspaceConfig.folders.length;
+  workspaceConfig.folders = workspaceConfig.folders.filter(folder => {
+    const absoluteFolderPath = path.resolve(workspaceDir, folder.path);
+    return absoluteFolderPath !== path.resolve(worktreePath);
+  });
+
+  if (workspaceConfig.folders.length === initialLength) {
+    const folderName = path.basename(worktreePath);
+    console.log(`⚠️  Folder '${folderName}' was not found in the workspace`);
+    return absoluteWorkspacePath;
+  }
 
   // Write the updated workspace configuration
   try {

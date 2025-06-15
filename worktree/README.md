@@ -11,39 +11,51 @@ npm install -g @infodb/worktree
 Or use with pnpx:
 
 ```bash
-pnpx @infodb/worktree <branch-name> [options]
+pnpx @infodb/worktree <command> [arguments] [options]
 ```
 
 ## Usage
 
-### Basic Usage
+### Add Command (Create Worktree)
 
-Create a git worktree for a branch (automatically detects workspace files):
+Create a git worktree for a branch and add it to a VSCode workspace:
 
 ```bash
-pnpx @infodb/worktree feature/new-feature
+pnpx @infodb/worktree add <workspace-name> <branch-name> [options]
 ```
 
 This creates a worktree directory named `{project}.{branch}` (e.g., `myproject.feature-new-feature`)
 
-### With VSCode Workspace
-
-Create a git worktree and add it to a specific VSCode workspace file:
+#### Basic Usage
 
 ```bash
-pnpx @infodb/worktree feature/new-feature --workspace my-project
+pnpx @infodb/worktree add my-workspace feature/new-feature
 ```
 
 Note: 
 - `.code-workspace` extension is optional and will be added automatically
 - If the workspace file doesn't exist, it will be created automatically with the current repository included
 
-### Custom Directory Name
+#### Custom Directory Name
 
 Specify a custom directory name for the worktree:
 
 ```bash
-pnpx @infodb/worktree feature/new-feature --directory custom-folder-name
+pnpx @infodb/worktree add my-workspace feature/new-feature --directory custom-folder-name
+```
+
+### Remove Command (Delete Worktree)
+
+Remove a git worktree and remove it from a VSCode workspace:
+
+```bash
+pnpx @infodb/worktree remove <workspace-name> <branch-name>
+```
+
+Alias: `rm`
+
+```bash
+pnpx @infodb/worktree rm my-workspace feature/new-feature
 ```
 
 ### Environment Variable
@@ -55,10 +67,21 @@ export INFODB_WORKSPACE_DIR="/path/to/workspaces"
 pnpx @infodb/worktree feature/new-feature
 ```
 
-### Options
+### Commands
 
-- `-w, --workspace <file>`: VSCode workspace file to update (.code-workspace extension optional)
+#### `add <workspace-name> <branch-name> [options]`
+Create a new worktree and add it to the specified workspace.
+
+**Options:**
 - `-d, --directory <dir>`: Custom directory name for the worktree (defaults to project.branch pattern)
+
+#### `remove <workspace-name> <branch-name>`
+Remove an existing worktree and remove it from the specified workspace.
+
+**Aliases:** `rm`
+
+### Global Options
+
 - `-h, --help`: Display help information
 - `-V, --version`: Display version number
 
@@ -86,21 +109,27 @@ pnpx @infodb/worktree feature/new-feature
 ## Examples
 
 ```bash
-# Create worktree with automatic workspace detection
-pnpx @infodb/worktree main
+# Create worktree and add to workspace
+pnpx @infodb/worktree add my-project main
 # Creates: myproject.main/
 
 # Create worktree for feature branch (branch name gets sanitized)
-pnpx @infodb/worktree feature/user-auth
+pnpx @infodb/worktree add my-project feature/user-auth
 # Creates: myproject.feature-user-auth/
 
-# Create worktree and specify workspace file (extension optional, creates if not exists)
-pnpx @infodb/worktree feature/user-auth --workspace project
+# Create worktree with workspace file (extension optional, creates if not exists)
+pnpx @infodb/worktree add project feature/user-auth
 
 # Create worktree with custom directory name
-pnpx @infodb/worktree hotfix/critical-bug --directory hotfix-urgent
+pnpx @infodb/worktree add my-project hotfix/critical-bug --directory hotfix-urgent
+
+# Remove worktree and remove from workspace
+pnpx @infodb/worktree remove my-project feature/user-auth
+
+# Remove using alias
+pnpx @infodb/worktree rm my-project hotfix/critical-bug
 
 # Use environment variable for workspace search
 export INFODB_WORKSPACE_DIR="/home/user/workspaces"
-pnpx @infodb/worktree feature/new-feature
+pnpx @infodb/worktree add my-project feature/new-feature
 ```

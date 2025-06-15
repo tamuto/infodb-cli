@@ -11,39 +11,51 @@ npm install -g @infodb/worktree
 またはpnpxで直接実行:
 
 ```bash
-pnpx @infodb/worktree <ブランチ名> [オプション]
+pnpx @infodb/worktree <コマンド> [引数] [オプション]
 ```
 
 ## 使用方法
 
-### 基本的な使用方法
+### addコマンド（worktree作成）
 
-ブランチ用のgit worktreeを作成（ワークスペースファイルを自動検出）:
+ブランチ用のgit worktreeを作成してVSCodeワークスペースに追加:
 
 ```bash
-pnpx @infodb/worktree feature/new-feature
+pnpx @infodb/worktree add <ワークスペース名> <ブランチ名> [オプション]
 ```
 
 これにより `{プロジェクト名}.{ブランチ名}` 形式のworktreeディレクトリが作成されます（例: `myproject.feature-new-feature`）
 
-### VSCodeワークスペースと連携
-
-git worktreeを作成して特定のVSCodeワークスペースファイルに追加:
+#### 基本的な使用方法
 
 ```bash
-pnpx @infodb/worktree feature/new-feature --workspace my-project
+pnpx @infodb/worktree add my-workspace feature/new-feature
 ```
 
 注意: 
 - `.code-workspace` 拡張子は省略可能で、自動的に追加されます
 - ワークスペースファイルが存在しない場合は、現在のリポジトリを含めて自動的に作成されます
 
-### カスタムディレクトリ名
+#### カスタムディレクトリ名
 
 worktree用のカスタムディレクトリ名を指定:
 
 ```bash
-pnpx @infodb/worktree feature/new-feature --directory custom-folder-name
+pnpx @infodb/worktree add my-workspace feature/new-feature --directory custom-folder-name
+```
+
+### removeコマンド（worktree削除）
+
+git worktreeを削除してVSCodeワークスペースからも除去:
+
+```bash
+pnpx @infodb/worktree remove <ワークスペース名> <ブランチ名>
+```
+
+エイリアス: `rm`
+
+```bash
+pnpx @infodb/worktree rm my-workspace feature/new-feature
 ```
 
 ### 環境変数
@@ -55,10 +67,21 @@ export INFODB_WORKSPACE_DIR="/path/to/workspaces"
 pnpx @infodb/worktree feature/new-feature
 ```
 
-### オプション
+### コマンド
 
-- `-w, --workspace <file>`: 更新するVSCodeワークスペースファイル（.code-workspace拡張子は省略可能）
+#### `add <ワークスペース名> <ブランチ名> [オプション]`
+新しいworktreeを作成して指定されたワークスペースに追加します。
+
+**オプション:**
 - `-d, --directory <dir>`: worktree用のカスタムディレクトリ名（デフォルトは project.branch パターン）
+
+#### `remove <ワークスペース名> <ブランチ名>`
+既存のworktreeを削除して指定されたワークスペースから除去します。
+
+**エイリアス:** `rm`
+
+### グローバルオプション
+
 - `-h, --help`: ヘルプ情報を表示
 - `-V, --version`: バージョン番号を表示
 
@@ -86,23 +109,29 @@ pnpx @infodb/worktree feature/new-feature
 ## 使用例
 
 ```bash
-# ワークスペース自動検出でworktreeを作成
-pnpx @infodb/worktree main
+# worktreeを作成してワークスペースに追加
+pnpx @infodb/worktree add my-project main
 # 作成されるディレクトリ: myproject.main/
 
 # 機能ブランチのworktreeを作成（ブランチ名は正規化される）
-pnpx @infodb/worktree feature/user-auth
+pnpx @infodb/worktree add my-project feature/user-auth
 # 作成されるディレクトリ: myproject.feature-user-auth/
 
 # ワークスペースファイルを指定してworktreeを作成（拡張子省略可能、存在しない場合は作成）
-pnpx @infodb/worktree feature/user-auth --workspace project
+pnpx @infodb/worktree add project feature/user-auth
 
 # カスタムディレクトリ名でworktreeを作成
-pnpx @infodb/worktree hotfix/critical-bug --directory hotfix-urgent
+pnpx @infodb/worktree add my-project hotfix/critical-bug --directory hotfix-urgent
+
+# worktreeを削除してワークスペースからも除去
+pnpx @infodb/worktree remove my-project feature/user-auth
+
+# エイリアスを使用して削除
+pnpx @infodb/worktree rm my-project hotfix/critical-bug
 
 # 環境変数を使用してワークスペース検索
 export INFODB_WORKSPACE_DIR="/home/user/workspaces"
-pnpx @infodb/worktree feature/new-feature
+pnpx @infodb/worktree add my-project feature/new-feature
 ```
 
 ## トラブルシューティング
@@ -111,7 +140,10 @@ pnpx @infodb/worktree feature/new-feature
 
 - **"Not in a git repository"**: Gitリポジトリ内でコマンドを実行してください
 - **"Directory already exists"**: 指定したディレクトリが既に存在します。別の名前を使用するか、`--directory`オプションで別名を指定してください
-- **"Workspace file must have .code-workspace extension"**: ワークスペースファイルは`.code-workspace`拡張子が必要です
+- **"Workspace file not found"**: 指定されたワークスペースファイルが見つかりません
+- **"Worktree for branch not found"**: 削除しようとしているworktreeが見つかりません
+- **"Workspace name cannot be empty"**: ワークスペース名は必須です
+- **"Branch name cannot be empty"**: ブランチ名は必須です
 
 ### デバッグ
 
