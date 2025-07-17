@@ -29,7 +29,6 @@ pnpx @infodb/lctl deploy <function-name> [オプション]
 - `--runtime <runtime>`: ランタイム環境 (デフォルト: python3.12)
 - `--handler <handler>`: ハンドラー関数 (デフォルト: {function-name}.handler)
 - `--role <role-arn>`: IAMロールARN (新規作成時に必須)
-- `--params <key=value>`: YAML内の変数を置換 (複数指定可能)
 - `--config <directory>`: 設定ファイルのディレクトリ (デフォルト: configs)
 - `--function <directory>`: 関数ファイルのディレクトリ (デフォルト: functions)
 
@@ -41,11 +40,8 @@ pnpx @infodb/lctl deploy my-function --role arn:aws:iam::123456789012:role/lambd
 # YAML設定ファイルを使用（推奨）
 pnpx @infodb/lctl deploy my-function  # configs/my-function.yaml から設定を読み込み
 
-# パラメータを使ってフレキシブルなデプロイ
-pnpx @infodb/lctl deploy my-function --params env=prod --params db_host=db.prod.example.com
-
-# 開発環境向け
-pnpx @infodb/lctl deploy my-function --params env=dev --params db_host=localhost --params db_port=5432
+# 環境変数を使ってフレキシブルなデプロイ
+AWS_ROLE_ARN=arn:aws:iam::123456789012:role/lambda-role ENV=prod pnpx @infodb/lctl deploy my-function
 
 # カスタム設定ディレクトリを使用
 pnpx @infodb/lctl deploy my-function --config environments/prod
@@ -94,7 +90,6 @@ pnpx @infodb/lctl export <function-name> [オプション]
 - `--runtime <runtime>`: ランタイム環境 (デフォルト: python3.12)
 - `--handler <handler>`: ハンドラー関数 (デフォルト: {function-name}.handler)
 - `--role <role-arn>`: IAMロールARN (新規作成時に必須)
-- `--params <key=value>`: YAML内の変数を置換 (複数指定可能)
 - `--config <directory>`: 設定ファイルのディレクトリ (デフォルト: configs)
 - `--function <directory>`: 関数ファイルのディレクトリ (デフォルト: functions)
 - `--output <file>`: 出力ファイルパス (デフォルト: deploy-{function-name}.sh)
@@ -107,8 +102,8 @@ pnpx @infodb/lctl export <function-name> [オプション]
 # スクリプト出力
 pnpx @infodb/lctl export my-function --output deploy-script.sh
 
-# パラメータ付きでスクリプト出力
-pnpx @infodb/lctl export my-function --params env=prod --params db_host=prod.example.com
+# 環境変数を使用してスクリプト出力
+ENV=prod DB_HOST=prod.example.com pnpx @infodb/lctl export my-function
 ```
 
 ## グローバルオプション
@@ -155,7 +150,7 @@ Lambda関数のコードは `functions/` ディレクトリ（デフォルト）
 # my-function.yaml
 runtime: python3.12
 handler: my-function.handler
-role: arn:aws:iam::123456789012:role/lambda-execution-role-$env
+role: ${AWS_ROLE_ARN}
 architecture: x86_64  # x86_64 または arm64
 memory: 256
 timeout: 30
@@ -170,10 +165,10 @@ files:
 
 # 環境変数
 environment:
-  DB_HOST: $db_host
-  DB_PORT: $db_port
-  API_KEY: ${API_KEY}  # 環境変数から取得
-  ENV: $env
+  DB_HOST: ${DB_HOST}
+  DB_PORT: ${DB_PORT}
+  API_KEY: ${API_KEY}
+  ENV: ${ENV}
 
 # ログ設定
 log_retention_days: 7          # ログ保持期間（日）
@@ -257,15 +252,10 @@ tags:
 - `${VAR_NAME}` 形式で現在の環境変数を参照可能
 - 存在しない環境変数を参照した場合はエラー
 
-**パラメータ変数の展開:**
-- `$key` 形式で `--params` オプションで指定した値を参照可能
-- `--params env=prod --params db_host=db.example.com` のように複数指定可能
-- YAML内の `$env` は `prod`、`$db_host` は `db.example.com` に置換される
-
-**変数の優先順位:**
-1. `--params` で指定したパラメータ変数 (`$key`)
-2. 環境変数 (`${VAR_NAME}`)
-3. 存在しない変数の場合はエラー
+**環境変数を使用した環境管理:**
+```bash
+AWS_ROLE_ARN=arn:aws:iam::123456789012:role/lambda-role ENV=prod pnpx @infodb/lctl deploy my-function
+```
 
 ## エラーハンドリング
 - AWS CLIコマンドが失敗した場合、適切なエラーメッセージを表示

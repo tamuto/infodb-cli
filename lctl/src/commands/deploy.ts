@@ -8,7 +8,6 @@ export interface DeployOptions {
   runtime?: string;
   handler?: string;
   role?: string;
-  params?: string[];
   config?: string;
   function?: string;
   region?: string;
@@ -22,21 +21,8 @@ export async function deployCommand(functionName: string, options: DeployOptions
   try {
     logger.info(`Deploying Lambda function: ${chalk.cyan(functionName)}`);
 
-    // Parse parameters
-    const params: Record<string, string> = {};
-    if (options.params) {
-      for (const param of options.params) {
-        const [key, value] = param.split('=');
-        if (key && value) {
-          params[key] = value;
-        } else {
-          throw new Error(`Invalid parameter format: ${param}. Use key=value format.`);
-        }
-      }
-    }
-
     // Load configuration
-    const configManager = new ConfigManager(functionName, params, logger);
+    const configManager = new ConfigManager(functionName, logger);
     const config = await configManager.loadConfig({
       runtime: options.runtime,
       handler: options.handler,
