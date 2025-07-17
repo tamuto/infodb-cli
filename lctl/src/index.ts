@@ -12,7 +12,7 @@ const program = new Command();
 program
   .name('lctl')
   .description('AWS Lambda Control Tool - Simple CLI for managing Lambda functions')
-  .version('0.3.0');
+  .version('0.4.0');
 
 // Deploy command
 program
@@ -22,7 +22,6 @@ program
   .option('--runtime <runtime>', 'Runtime environment', 'python3.12')
   .option('--handler <handler>', 'Handler function')
   .option('--role <role-arn>', 'IAM role ARN (required for new functions)')
-  .option('--params <key=value>', 'Parameters for YAML variable substitution', [])
   .option('--config <directory>', 'Config directory path', 'configs')
   .option('--function <directory>', 'Functions directory path', 'functions')
   .option('--region <region>', 'AWS region')
@@ -58,7 +57,6 @@ program
   .option('--runtime <runtime>', 'Runtime environment', 'python3.12')
   .option('--handler <handler>', 'Handler function')
   .option('--role <role-arn>', 'IAM role ARN (required for new functions)')
-  .option('--params <key=value>', 'Parameters for YAML variable substitution', [])
   .option('--config <directory>', 'Config directory path', 'configs')
   .option('--function <directory>', 'Functions directory path', 'functions')
   .option('--output <file>', 'Output script file path')

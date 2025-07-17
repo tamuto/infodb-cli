@@ -44,7 +44,6 @@ export interface DeployConfig {
 export class ConfigManager {
   constructor(
     private functionName: string,
-    private params: Record<string, string>,
     private logger: Logger
   ) {}
 
@@ -58,11 +57,15 @@ export class ConfigManager {
     try {
       const yamlContent = await fs.readFile(yamlPath, 'utf-8');
       const parsedYaml = yaml.parse(yamlContent);
+      this.logger.verbose(`Parsed YAML before substitution:`, parsedYaml);
       yamlConfig = this.substituteVariables(parsedYaml);
       this.logger.verbose(`Loaded YAML config from: ${yamlPath}`);
+      this.logger.verbose(`YAML config after substitution:`, yamlConfig);
     } catch (error) {
       if (error instanceof Error) {
         this.logger.verbose(`Failed to load YAML config: ${error.message}`);
+        // 変数展開エラーの場合、エラーを再スローしてユーザーに通知
+        throw error;
       } else {
         this.logger.verbose(`No YAML config found at: ${yamlPath}`);
       }
@@ -103,14 +106,8 @@ export class ConfigManager {
 
   private substituteVariables(obj: any): any {
     if (typeof obj === 'string') {
-      // Replace $key with params
-      let result = obj;
-      for (const [key, value] of Object.entries(this.params)) {
-        result = result.replace(new RegExp(`\\$${key}\\b`, 'g'), value);
-      }
-
       // Replace ${ENV_VAR} with environment variables
-      result = result.replace(/\$\{([^}]+)\}/g, (_, envVar) => {
+      const result = obj.replace(/\$\{([^}]+)\}/g, (_, envVar) => {
         const envValue = process.env[envVar];
         if (envValue === undefined) {
           throw new Error(`Environment variable ${envVar} is not defined`);
