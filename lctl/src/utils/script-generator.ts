@@ -62,7 +62,11 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
 
   private generateZipSection(config: LambdaConfig): string {
     let section = '# Create deployment package\n';
-
+    const functionsDir = config.functionsDirectory || 'functions';
+    
+    // Change to functions directory
+    section += `cd ${functionsDir}\n`;
+    
     if (config.files && config.files.length > 0) {
       // Custom file list
       section += 'echo "Creating deployment package..."\n';
@@ -78,11 +82,15 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
       }
     } else {
       // Default: zip current directory with excludes from config
-      section += 'echo "Creating deployment package from current directory..."\n';
+      section += 'echo "Creating deployment package from functions directory..."\n';
       const excludes = config.zip_excludes || ['*.git*', 'node_modules/*', '*.zip', 'dist/*', '.DS_Store'];
       const excludeArgs = excludes.map(exclude => `"${exclude}"`).join(' ');
       section += `zip -r lambda.zip . -x ${excludeArgs}\n`;
     }
+    
+    // Move ZIP back to project root
+    section += `mv lambda.zip ../\n`;
+    section += `cd ..\n`;
 
     section += '\n';
     return section;

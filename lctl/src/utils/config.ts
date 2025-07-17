@@ -30,6 +30,9 @@ export interface LambdaConfig {
   log_retention_days?: number;
   auto_create_log_group?: boolean;
   zip_excludes?: string[];
+  
+  // Functions directory
+  functionsDirectory?: string;
 }
 
 export interface DeployConfig {
@@ -45,8 +48,10 @@ export class ConfigManager {
     private logger: Logger
   ) {}
 
-  async loadConfig(overrides: DeployConfig): Promise<LambdaConfig> {
-    const yamlPath = path.join(process.cwd(), `${this.functionName}.yaml`);
+  async loadConfig(overrides: DeployConfig, configDir?: string, functionDir?: string): Promise<LambdaConfig> {
+    const configDirectory = configDir || 'configs';
+    const functionsDirectory = functionDir || 'functions';
+    const yamlPath = path.join(process.cwd(), configDirectory, `${this.functionName}.yaml`);
     let yamlConfig: Partial<LambdaConfig> = {};
 
     // Try to load YAML config
@@ -81,6 +86,7 @@ export class ConfigManager {
       log_retention_days: yamlConfig.log_retention_days || 7,
       auto_create_log_group: yamlConfig.auto_create_log_group !== false,
       zip_excludes: yamlConfig.zip_excludes || ['*.git*', 'node_modules/*', '*.zip', 'dist/*', '.DS_Store'],
+      functionsDirectory: functionsDirectory,
     };
 
     // Validate required fields

@@ -19,7 +19,7 @@ pnpx @infodb/lctl deploy <function-name> [オプション]
 
 **設定の優先順位:**
 1. コマンドラインオプション (最優先)
-2. `<function-name>.yaml` 設定ファイル
+2. `configs/<function-name>.yaml` 設定ファイル
 3. デフォルト値
 
 **必須引数:**
@@ -30,20 +30,28 @@ pnpx @infodb/lctl deploy <function-name> [オプション]
 - `--handler <handler>`: ハンドラー関数 (デフォルト: {function-name}.handler)
 - `--role <role-arn>`: IAMロールARN (新規作成時に必須)
 - `--params <key=value>`: YAML内の変数を置換 (複数指定可能)
+- `--config <directory>`: 設定ファイルのディレクトリ (デフォルト: configs)
+- `--function <directory>`: 関数ファイルのディレクトリ (デフォルト: functions)
 
 **例:**
 ```bash
-# 最もシンプルな使用方法（カレントディレクトリのファイルを自動ZIP化）
+# 最もシンプルな使用方法（functionsディレクトリのファイルを自動ZIP化）
 pnpx @infodb/lctl deploy my-function --role arn:aws:iam::123456789012:role/lambda-role
 
 # YAML設定ファイルを使用（推奨）
-pnpx @infodb/lctl deploy my-function  # my-function.yaml から設定を読み込み
+pnpx @infodb/lctl deploy my-function  # configs/my-function.yaml から設定を読み込み
 
 # パラメータを使ってフレキシブルなデプロイ
 pnpx @infodb/lctl deploy my-function --params env=prod --params db_host=db.prod.example.com
 
 # 開発環境向け
 pnpx @infodb/lctl deploy my-function --params env=dev --params db_host=localhost --params db_port=5432
+
+# カスタム設定ディレクトリを使用
+pnpx @infodb/lctl deploy my-function --config environments/prod
+
+# カスタム関数ディレクトリを使用
+pnpx @infodb/lctl deploy my-function --function src
 ```
 
 ### 2. delete - Lambda関数の削除
@@ -87,6 +95,8 @@ pnpx @infodb/lctl export <function-name> [オプション]
 - `--handler <handler>`: ハンドラー関数 (デフォルト: {function-name}.handler)
 - `--role <role-arn>`: IAMロールARN (新規作成時に必須)
 - `--params <key=value>`: YAML内の変数を置換 (複数指定可能)
+- `--config <directory>`: 設定ファイルのディレクトリ (デフォルト: configs)
+- `--function <directory>`: 関数ファイルのディレクトリ (デフォルト: functions)
 - `--output <file>`: 出力ファイルパス (デフォルト: deploy-{function-name}.sh)
 - `--region <region>`: AWSリージョン
 - `--profile <profile>`: AWSプロファイル
@@ -113,12 +123,31 @@ pnpx @infodb/lctl export my-function --params env=prod --params db_host=prod.exa
 - AWS CLI v2がインストールされていること
 - 適切なAWS認証情報が設定されていること
 
+## プロジェクト構成
+
+推奨されるプロジェクト構成：
+
+```
+project/
+├── configs/                # 設定ファイル
+│   ├── my-function.yaml
+│   └── other-function.yaml
+├── functions/              # Lambda関数コード
+│   ├── my-function.py
+│   ├── requirements.txt
+│   └── utils.py
+└── other-files/
+```
+
 ## YAML設定ファイル
 
-関数名と同じ名前の `.yaml` ファイルがある場合、その設定を自動的に読み込みます。
+設定ファイルは `configs/` ディレクトリ（デフォルト）から自動的に読み込まれます。  
+Lambda関数のコードは `functions/` ディレクトリ（デフォルト）から読み込まれます。
 
 ### ファイル名の規則
-- `<function-name>.yaml` (例: `my-function.yaml`)
+- `configs/<function-name>.yaml` (例: `configs/my-function.yaml`)
+- `--config` オプションでディレクトリを変更可能
+- `--function` オプションで関数ディレクトリを変更可能
 
 ### YAML設定例
 
@@ -132,11 +161,11 @@ memory: 256
 timeout: 30
 description: "マイ Lambda 関数"
 
-# 依存ファイルの指定（自動ZIP化）
+# 依存ファイルの指定（functionsディレクトリ内の相対パス）
 files:
-  - src/
+  - my-function.py
   - requirements.txt
-  - config.json
+  - utils.py
   - "lib/**/*.py"  # glob パターンも使用可能
 
 # 環境変数
