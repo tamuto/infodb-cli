@@ -109,11 +109,9 @@ deployコマンド実行時の流れ：
 ```bash
 cd lctl
 npm install          # 依存関係インストール
-npm run dev          # 開発実行
+npm run dev          # 開発実行（watch モード）
 npm run build        # ビルド
-npm run watch        # watch モード
-npm run lint         # ESLint
-npm run format       # Prettier
+npm run start        # ビルド済みコードを実行
 ```
 
 #### プロジェクト構造
@@ -121,11 +119,10 @@ npm run format       # Prettier
 lctl/
 ├── package.json
 ├── tsconfig.json
-├── .eslintrc.js
-├── .prettierrc
-├── .gitignore
 ├── README.md
 ├── CLAUDE.md
+├── bin/
+│   └── cli.js               # CLIエントリーポイント
 └── src/
     ├── index.ts              # メインエントリーポイント
     ├── commands/

@@ -63,9 +63,6 @@ program
   .option('--verbose', 'Verbose output')
   .action(exportCommand);
 
-// Global error handler
-program.exitOverride();
-
 program.parse();
 
 // Handle unhandled errors

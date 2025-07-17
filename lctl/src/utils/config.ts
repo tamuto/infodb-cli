@@ -25,7 +25,7 @@ export interface LambdaConfig {
     target_arn: string;
   };
   tags?: Record<string, string>;
-  
+
   // シンプルなデプロイメント設定
   log_retention_days?: number;
   auto_create_log_group?: boolean;
@@ -98,7 +98,7 @@ export class ConfigManager {
       for (const [key, value] of Object.entries(this.params)) {
         result = result.replace(new RegExp(`\\$${key}\\b`, 'g'), value);
       }
-      
+
       // Replace ${ENV_VAR} with environment variables
       result = result.replace(/\$\{([^}]+)\}/g, (match, envVar) => {
         const envValue = process.env[envVar];
@@ -107,14 +107,14 @@ export class ConfigManager {
         }
         return envValue;
       });
-      
+
       return result;
     }
-    
+
     if (Array.isArray(obj)) {
       return obj.map(item => this.substituteVariables(item));
     }
-    
+
     if (obj && typeof obj === 'object') {
       const result: any = {};
       for (const [key, value] of Object.entries(obj)) {
@@ -122,7 +122,7 @@ export class ConfigManager {
       }
       return result;
     }
-    
+
     return obj;
   }
 }

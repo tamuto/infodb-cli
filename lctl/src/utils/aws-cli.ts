@@ -31,7 +31,7 @@ export class AwsCliManager {
   async deployFunction(functionName: string, config: LambdaConfig, zipPath: string): Promise<void> {
     // Check if function exists
     const functionExists = await this.functionExists(functionName);
-    
+
     if (functionExists) {
       await this.updateFunction(functionName, config, zipPath);
     } else {
@@ -50,7 +50,7 @@ export class AwsCliManager {
 
   private async createFunction(functionName: string, config: LambdaConfig, zipPath: string): Promise<void> {
     this.logger?.info('Creating new Lambda function...');
-    
+
     const args = [
       'lambda', 'create-function',
       '--function-name', functionName,
@@ -64,15 +64,15 @@ export class AwsCliManager {
     if (config.description) {
       args.push('--description', config.description);
     }
-    
+
     if (config.memory) {
       args.push('--memory-size', config.memory.toString());
     }
-    
+
     if (config.timeout) {
       args.push('--timeout', config.timeout.toString());
     }
-    
+
     if (config.architecture && config.architecture !== 'x86_64') {
       args.push('--architectures', config.architecture);
     }
@@ -96,14 +96,14 @@ export class AwsCliManager {
     }
 
     await this.runAwsCommand(args);
-    
+
     // Set additional configurations
     await this.setAdditionalConfigurations(functionName, config);
   }
 
   private async updateFunction(functionName: string, config: LambdaConfig, zipPath: string): Promise<void> {
     this.logger?.info('Updating existing Lambda function...');
-    
+
     // Update function code
     await this.runAwsCommand([
       'lambda', 'update-function-code',
@@ -123,11 +123,11 @@ export class AwsCliManager {
     if (config.description) {
       configArgs.push('--description', config.description);
     }
-    
+
     if (config.memory) {
       configArgs.push('--memory-size', config.memory.toString());
     }
-    
+
     if (config.timeout) {
       configArgs.push('--timeout', config.timeout.toString());
     }
@@ -144,7 +144,7 @@ export class AwsCliManager {
     }
 
     await this.runAwsCommand(configArgs);
-    
+
     // Set additional configurations
     await this.setAdditionalConfigurations(functionName, config);
   }
@@ -199,7 +199,7 @@ export class AwsCliManager {
       'lambda', 'get-function',
       '--function-name', functionName,
     ]);
-    
+
     const response = JSON.parse(result);
     return response.Configuration;
   }
@@ -207,21 +207,21 @@ export class AwsCliManager {
   private async runAwsCommand(args: string[]): Promise<string> {
     return new Promise((resolve, reject) => {
       const baseArgs = ['aws'];
-      
+
       if (this.profile) {
         baseArgs.push('--profile', this.profile);
       }
-      
+
       if (this.region) {
         baseArgs.push('--region', this.region);
       }
-      
+
       baseArgs.push('--output', 'json');
-      
+
       const fullArgs = [...baseArgs, ...args];
-      
+
       this.logger?.verbose(`Running command: ${fullArgs.join(' ')}`);
-      
+
       const child = spawn(fullArgs[0], fullArgs.slice(1), {
         stdio: ['inherit', 'pipe', 'pipe'],
       });

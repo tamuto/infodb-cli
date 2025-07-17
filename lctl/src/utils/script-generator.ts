@@ -14,19 +14,11 @@ set -eu
 # Function: ${functionName}
 # Generated at: ${new Date().toISOString()}
 
-${this.generateEnvironmentSection(config)}
-
-${this.generateZipSection(config)}
-
-${this.generateEnvironmentVariablesSection(config)}
-
-${this.generateLayersSection(config)}
-
-# Lambda関数の存在を確認
+${this.generateEnvironmentSection(config)}${this.generateZipSection(config)}${this.generateEnvironmentVariablesSection(config)}${this.generateLayersSection(config)}# Lambda関数の存在を確認
 if aws lambda get-function --function-name ${functionName} &> /dev/null; then
     echo "Updating existing Lambda function: ${functionName}"
     aws lambda update-function-code --function-name ${functionName} --zip-file fileb://lambda.zip | jq .
-    
+
     # 設定の更新
     aws lambda update-function-configuration --function-name ${functionName} \\
         --runtime ${config.runtime} \\
@@ -35,9 +27,9 @@ if aws lambda get-function --function-name ${functionName} &> /dev/null; then
         --timeout ${config.timeout || 3} \\
         --memory-size ${config.memory || 128} \\
         --architectures ${config.architecture || 'x86_64'}${this.generateEnvironmentVariablesFlag(config)}${this.generateLayersFlag(config)} | jq .
-    
+
     ${this.generateAdditionalConfigurationCommands(functionName, config)}
-    
+
     rm lambda.zip
     exit 0
 fi
@@ -65,24 +57,17 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
   }
 
   private generateEnvironmentSection(config: LambdaConfig): string {
-    let section = '';
-    
-    // AWS Profile and Region from environment or defaults
-    section += '# AWS Configuration\n';
-    section += 'export AWS_PROFILE=${AWS_PROFILE:-default}\n';
-    section += 'export AWS_REGION=${AWS_REGION:-ap-northeast-1}\n\n';
-    
-    return section;
+    return '';
   }
 
   private generateZipSection(config: LambdaConfig): string {
     let section = '# Create deployment package\n';
-    
+
     if (config.files && config.files.length > 0) {
       // Custom file list
       section += 'echo "Creating deployment package..."\n';
       section += 'rm -f lambda.zip\n';
-      
+
       for (const file of config.files) {
         if (file.includes('*')) {
           // Glob pattern - use find for bash compatibility
@@ -98,7 +83,7 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
       const excludeArgs = excludes.map(exclude => `"${exclude}"`).join(' ');
       section += `zip -r lambda.zip . -x ${excludeArgs}\n`;
     }
-    
+
     section += '\n';
     return section;
   }
@@ -110,7 +95,7 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
 
     let section = '# Environment Variables\n';
     section += 'ENVIRON="Variables={"\n';
-    
+
     const envVars = Object.entries(config.environment);
     envVars.forEach(([key, value], index) => {
       section += `ENVIRON+="${key}=${value}`;
@@ -119,7 +104,7 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
       }
       section += '"\n';
     });
-    
+
     section += 'ENVIRON+="}"\n\n';
     return section;
   }
@@ -199,7 +184,7 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
 
   private generateLogGroupSection(functionName: string, config: LambdaConfig): string {
     let section = '';
-    
+
     // Only create log group if auto_create_log_group is true (default)
     if (config.auto_create_log_group !== false) {
       section += `
@@ -216,12 +201,12 @@ fi
 aws logs put-retention-policy --log-group-name /aws/lambda/${functionName} --retention-in-days ${config.log_retention_days || 7} | jq .
 `;
     }
-    
+
     return section;
   }
 
-  async saveScript(functionName: string, script: string): Promise<string> {
-    const scriptPath = path.join(process.cwd(), `deploy-${functionName}.sh`);
+  async saveScript(outputPath: string, script: string): Promise<string> {
+    const scriptPath = path.resolve(outputPath);
     await fs.writeFile(scriptPath, script, { mode: 0o755 });
     this.logger.verbose(`Deploy script saved: ${scriptPath}`);
     return scriptPath;

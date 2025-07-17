@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 
 export class Logger {
-  constructor(private verbose: boolean = false) {}
+  constructor(private isVerbose: boolean = false) {}
 
   info(message: string): void {
     console.log(chalk.blue('ℹ'), message);
@@ -20,7 +20,7 @@ export class Logger {
   }
 
   verbose(message: string, data?: any): void {
-    if (this.verbose) {
+    if (this.isVerbose) {
       console.log(chalk.gray('🔍'), chalk.gray(message));
       if (data) {
         console.log(chalk.gray(JSON.stringify(data, null, 2)));
@@ -29,7 +29,7 @@ export class Logger {
   }
 
   debug(message: string, data?: any): void {
-    if (this.verbose) {
+    if (this.isVerbose) {
       console.log(chalk.magenta('🐛'), chalk.magenta(message));
       if (data) {
         console.log(chalk.magenta(JSON.stringify(data, null, 2)));

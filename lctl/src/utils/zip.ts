@@ -1,6 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import * as archiver from 'archiver';
+import archiver from 'archiver';
 import { glob } from 'glob';
 import { Logger } from './logger';
 import { createWriteStream } from 'fs';
@@ -10,9 +10,9 @@ export class ZipManager {
 
   async createZip(functionName: string, files: string[] = ['.']): Promise<string> {
     const zipPath = path.join(process.cwd(), `${functionName}-deploy.zip`);
-    
+
     this.logger.verbose(`Creating ZIP file: ${zipPath}`);
-    
+
     const output = createWriteStream(zipPath);
     const archive = archiver('zip', { zlib: { level: 9 } });
 
@@ -22,7 +22,7 @@ export class ZipManager {
         resolve(zipPath);
       });
 
-      archive.on('error', (err) => {
+      archive.on('error', (err: Error) => {
         reject(err);
       });
 
@@ -43,18 +43,18 @@ export class ZipManager {
 
   private async addFilesToArchive(archive: archiver.Archiver, filePattern: string): Promise<void> {
     const isGlobPattern = filePattern.includes('*') || filePattern.includes('?');
-    
+
     if (isGlobPattern) {
       // Handle glob patterns
-      const matches = await glob(filePattern, { 
+      const matches = await glob(filePattern, {
         cwd: process.cwd(),
         ignore: ['node_modules/**', '.git/**', '*.zip', 'dist/**']
       });
-      
+
       for (const match of matches) {
         const fullPath = path.join(process.cwd(), match);
         const stat = await fs.stat(fullPath);
-        
+
         if (stat.isFile()) {
           archive.file(fullPath, { name: match });
           this.logger.verbose(`Added file: ${match}`);
@@ -63,10 +63,10 @@ export class ZipManager {
     } else {
       // Handle direct file/directory paths
       const fullPath = path.join(process.cwd(), filePattern);
-      
+
       try {
         const stat = await fs.stat(fullPath);
-        
+
         if (stat.isFile()) {
           archive.file(fullPath, { name: filePattern });
           this.logger.verbose(`Added file: ${filePattern}`);
