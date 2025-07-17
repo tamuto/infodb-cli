@@ -9,6 +9,8 @@ export interface DeployOptions {
   handler?: string;
   role?: string;
   params?: string[];
+  config?: string;
+  function?: string;
   region?: string;
   profile?: string;
   verbose?: boolean;
@@ -39,7 +41,7 @@ export async function deployCommand(functionName: string, options: DeployOptions
       runtime: options.runtime,
       handler: options.handler,
       role: options.role,
-    });
+    }, options.config, options.function);
 
     logger.verbose('Configuration loaded:', config);
 
