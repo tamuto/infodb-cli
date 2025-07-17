@@ -61,7 +61,11 @@ export class ConfigManager {
       yamlConfig = this.substituteVariables(parsedYaml);
       this.logger.verbose(`Loaded YAML config from: ${yamlPath}`);
     } catch (error) {
-      this.logger.verbose(`No YAML config found at: ${yamlPath}`);
+      if (error instanceof Error) {
+        this.logger.verbose(`Failed to load YAML config: ${error.message}`);
+      } else {
+        this.logger.verbose(`No YAML config found at: ${yamlPath}`);
+      }
     }
 
     // Set defaults
@@ -106,7 +110,7 @@ export class ConfigManager {
       }
 
       // Replace ${ENV_VAR} with environment variables
-      result = result.replace(/\$\{([^}]+)\}/g, (match, envVar) => {
+      result = result.replace(/\$\{([^}]+)\}/g, (_, envVar) => {
         const envValue = process.env[envVar];
         if (envValue === undefined) {
           throw new Error(`Environment variable ${envVar} is not defined`);
