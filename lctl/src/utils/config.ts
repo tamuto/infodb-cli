@@ -4,6 +4,7 @@ import * as yaml from 'yaml';
 import { Logger } from './logger';
 
 export interface LambdaConfig {
+  function_name?: string;
   runtime: string;
   handler: string;
   role: string;
@@ -26,6 +27,15 @@ export interface LambdaConfig {
   };
   tags?: Record<string, string>;
 
+  // Permission settings
+  permissions?: Array<{
+    service?: string;
+    principal?: string;
+    source_arn?: string;
+    statement_id?: string;
+    action?: string;
+  }>;
+
   // シンプルなデプロイメント設定
   log_retention_days?: number;
   auto_create_log_group?: boolean;
@@ -47,13 +57,13 @@ export class ConfigManager {
     private logger: Logger
   ) {}
 
-  async loadConfig(overrides: DeployConfig, configDir?: string, functionDir?: string): Promise<LambdaConfig> {
-    const configDirectory = configDir || 'configs';
-    const functionsDirectory = functionDir || 'functions';
-    const yamlPath = path.join(process.cwd(), configDirectory, `${this.functionName}.yaml`);
+  async loadConfig(overrides: DeployConfig): Promise<LambdaConfig> {
+    const configDirectory = 'configs';
+    const functionsDirectory = 'functions';
+    const yamlPath = path.resolve(configDirectory, `${this.functionName}.yaml`);
     let yamlConfig: Partial<LambdaConfig> = {};
 
-    // Try to load YAML config
+    // YAML config is now required
     try {
       const yamlContent = await fs.readFile(yamlPath, 'utf-8');
       const parsedYaml = yaml.parse(yamlContent);
@@ -63,17 +73,20 @@ export class ConfigManager {
       this.logger.verbose(`YAML config after substitution:`, yamlConfig);
     } catch (error) {
       if (error instanceof Error) {
-        this.logger.verbose(`Failed to load YAML config: ${error.message}`);
+        if ((error as any).code === 'ENOENT') {
+          throw new Error(`YAML config file is required but not found: ${yamlPath}`);
+        }
         // 変数展開エラーの場合、エラーを再スローしてユーザーに通知
         throw error;
       } else {
-        this.logger.verbose(`No YAML config found at: ${yamlPath}`);
+        throw new Error(`Failed to load YAML config from: ${yamlPath}`);
       }
     }
 
     // Set defaults
     const defaultHandler = `${this.functionName}.handler`;
     const config: LambdaConfig = {
+      function_name: yamlConfig.function_name || this.functionName,
       runtime: overrides.runtime || yamlConfig.runtime || 'python3.12',
       handler: overrides.handler || yamlConfig.handler || defaultHandler,
       role: overrides.role || yamlConfig.role || '',
@@ -90,6 +103,7 @@ export class ConfigManager {
       vpc: yamlConfig.vpc,
       dead_letter_queue: yamlConfig.dead_letter_queue,
       tags: yamlConfig.tags || {},
+      permissions: yamlConfig.permissions || [],
       log_retention_days: yamlConfig.log_retention_days || 7,
       auto_create_log_group: yamlConfig.auto_create_log_group !== false,
       zip_excludes: yamlConfig.zip_excludes || ['*.git*', 'node_modules/*', '*.zip', 'dist/*', '.DS_Store'],

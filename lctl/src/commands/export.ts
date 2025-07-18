@@ -4,15 +4,8 @@ import { ScriptGenerator } from '../utils/script-generator';
 import { Logger } from '../utils/logger';
 
 export interface ExportOptions {
-  runtime?: string;
-  handler?: string;
-  role?: string;
-  config?: string;
-  function?: string;
-  region?: string;
-  profile?: string;
-  verbose?: boolean;
   output?: string;
+  verbose?: boolean;
 }
 
 export async function exportCommand(functionName: string, options: ExportOptions): Promise<void> {
@@ -23,17 +16,14 @@ export async function exportCommand(functionName: string, options: ExportOptions
 
     // Load configuration
     const configManager = new ConfigManager(functionName, logger);
-    const config = await configManager.loadConfig({
-      runtime: options.runtime,
-      handler: options.handler,
-      role: options.role,
-    }, options.config, options.function);
+    const config = await configManager.loadConfig({});
 
     logger.verbose('Configuration loaded:', config);
 
     // Generate script
     const scriptGenerator = new ScriptGenerator(logger);
-    const script = scriptGenerator.generateDeployScript(functionName, config);
+    const actualFunctionName = config.function_name || functionName;
+    const script = scriptGenerator.generateDeployScript(actualFunctionName, config);
 
     // Save script
     const outputPath = options.output || `deploy-${functionName}.sh`;

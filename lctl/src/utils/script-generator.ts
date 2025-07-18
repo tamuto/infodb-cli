@@ -14,7 +14,7 @@ set -eu
 # Function: ${functionName}
 # Generated at: ${new Date().toISOString()}
 
-${this.generateEnvironmentSection(config)}${this.generateZipSection(config)}${this.generateEnvironmentVariablesSection(config)}${this.generateLayersSection(config)}# Lambda関数の存在を確認
+${this.generateZipSection(config)}${this.generateEnvironmentVariablesSection(config)}${this.generateLayersSection(config)}# Lambda関数の存在を確認
 if aws lambda get-function --function-name ${functionName} &> /dev/null; then
     echo "Updating existing Lambda function: ${functionName}"
     aws lambda update-function-code --function-name ${functionName} --zip-file fileb://lambda.zip | jq .
@@ -27,24 +27,22 @@ if aws lambda get-function --function-name ${functionName} &> /dev/null; then
         --timeout ${config.timeout || 3} \\
         --memory-size ${config.memory || 128} \\
         --architectures ${config.architecture || 'x86_64'}${this.generateEnvironmentVariablesFlag(config)}${this.generateLayersFlag(config)} | jq .
-
-    ${this.generateAdditionalConfigurationCommands(functionName, config)}
-
-    rm lambda.zip
-    exit 0
+else
+    echo "Creating new Lambda function: ${functionName}"
+    aws lambda create-function --function-name ${functionName} \\
+        --zip-file fileb://lambda.zip \\
+        --handler ${config.handler} \\
+        --runtime ${config.runtime} \\
+        --architectures ${config.architecture || 'x86_64'} \\
+        --timeout ${config.timeout || 3} \\
+        --memory-size ${config.memory || 128} \\
+        --role ${config.role}${this.generateEnvironmentVariablesFlag(config)}${this.generateLayersFlag(config)}${this.generateDescriptionFlag(config)} | jq .
 fi
 
-echo "Creating new Lambda function: ${functionName}"
-aws lambda create-function --function-name ${functionName} \\
-    --zip-file fileb://lambda.zip \\
-    --handler ${config.handler} \\
-    --runtime ${config.runtime} \\
-    --architectures ${config.architecture || 'x86_64'} \\
-    --timeout ${config.timeout || 3} \\
-    --memory-size ${config.memory || 128} \\
-    --role ${config.role}${this.generateEnvironmentVariablesFlag(config)}${this.generateLayersFlag(config)}${this.generateDescriptionFlag(config)} | jq .
-
+# 共通の追加設定
 ${this.generateAdditionalConfigurationCommands(functionName, config)}
+
+${this.generatePermissionsSection(functionName, config)}
 
 ${this.generateLogGroupSection(functionName, config)}
 
@@ -56,9 +54,6 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
     return script;
   }
 
-  private generateEnvironmentSection(config: LambdaConfig): string {
-    return '';
-  }
 
   private generateZipSection(config: LambdaConfig): string {
     let section = '# Create deployment package\n';
@@ -188,6 +183,69 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
     }
 
     return commands;
+  }
+
+  private generatePermissionsSection(functionName: string, config: LambdaConfig): string {
+    if (!config.permissions || config.permissions.length === 0) {
+      return '';
+    }
+
+    let section = '\n# Add permissions\n';
+    config.permissions.forEach((permission, index) => {
+      const statementId = permission.statement_id || `${permission.service || 'custom'}-${index}`;
+      const action = permission.action || 'lambda:InvokeFunction';
+      
+      // Use explicit principal if provided, otherwise derive from service
+      let principal: string;
+      if (permission.principal) {
+        principal = permission.principal;
+      } else if (permission.service) {
+        principal = this.getPrincipalForService(permission.service);
+      } else {
+        throw new Error(`Permission at index ${index} must specify either 'principal' or 'service'`);
+      }
+      
+      section += `aws lambda add-permission \\
+        --function-name ${functionName} \\
+        --statement-id ${statementId} \\
+        --action ${action} \\
+        --principal ${principal}`;
+      
+      if (permission.source_arn) {
+        section += ` \\
+        --source-arn ${permission.source_arn}`;
+      }
+      
+      section += ' | jq .\n';
+    });
+
+    return section;
+  }
+
+  private getPrincipalForService(service: string): string {
+    const servicePrincipals: Record<string, string> = {
+      'apigateway': 'apigateway.amazonaws.com',
+      'events': 'events.amazonaws.com',
+      'sns': 'sns.amazonaws.com',
+      'sqs': 'sqs.amazonaws.com',
+      's3': 's3.amazonaws.com',
+      'cloudwatch': 'events.amazonaws.com',
+      'iot': 'iot.amazonaws.com',
+      'logs': 'logs.amazonaws.com',
+      'elasticloadbalancing': 'elasticloadbalancing.amazonaws.com',
+      'cognito': 'cognito-idp.amazonaws.com',
+      'alexa': 'alexa-appkit.amazon.com',
+      'lex': 'lex.amazonaws.com',
+      'config': 'config.amazonaws.com',
+      'cloudformation': 'cloudformation.amazonaws.com',
+      'kinesis': 'kinesis.amazonaws.com',
+      'dynamodb': 'dynamodb.amazonaws.com',
+      'codecommit': 'codecommit.amazonaws.com',
+      'codebuild': 'codebuild.amazonaws.com',
+      'codepipeline': 'codepipeline.amazonaws.com',
+    };
+
+    return servicePrincipals[service] || service;
   }
 
   private generateLogGroupSection(functionName: string, config: LambdaConfig): string {
