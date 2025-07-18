@@ -36,7 +36,7 @@ export async function deployCommand(functionName: string, options: DeployOptions
       logger.info('Executing deployment script...');
       await executeScript(scriptPath, env, logger);
 
-      logger.success(`✅ Lambda function ${chalk.cyan(actualFunctionName)} deployed successfully!`);
+      // スクリプト内で成功メッセージが出力されるため、ここでは出力しない
 
     } finally {
       // Clean up script file
