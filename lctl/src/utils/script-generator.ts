@@ -23,7 +23,6 @@ if aws lambda get-function --function-name ${functionName} &> /dev/null; then
     aws lambda update-function-configuration --function-name ${functionName} \\
         --runtime ${config.runtime} \\
         --handler ${config.handler} \\
-        --role ${config.role} \\
         --timeout ${config.timeout || 3} \\
         --memory-size ${config.memory || 128}${this.generateEnvironmentVariablesFlag(config)}${this.generateLayersFlag(config)}${this.generateDescriptionFlag(config)} | jq .
 else
@@ -57,10 +56,10 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
   private generateZipSection(config: LambdaConfig): string {
     let section = '# Create deployment package\n';
     const functionsDir = config.functionsDirectory || 'functions';
-    
+
     // Change to functions directory
     section += `cd ${functionsDir}\n`;
-    
+
     if (config.files && config.files.length > 0) {
       // Custom file list
       section += 'echo "Creating deployment package..."\n';
@@ -81,7 +80,7 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
       const excludeArgs = excludes.map(exclude => `"${exclude}"`).join(' ');
       section += `zip -r lambda.zip . -x ${excludeArgs}\n`;
     }
-    
+
     // Move ZIP back to project root
     section += `mv lambda.zip ../\n`;
     section += `cd ..\n`;
@@ -193,7 +192,7 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
     config.permissions.forEach((permission, index) => {
       const statementId = permission.statement_id || `${permission.service || 'custom'}-${index}`;
       const action = permission.action || 'lambda:InvokeFunction';
-      
+
       // Use explicit principal if provided, otherwise derive from service
       let principal: string;
       if (permission.principal) {
@@ -203,18 +202,18 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
       } else {
         throw new Error(`Permission at index ${index} must specify either 'principal' or 'service'`);
       }
-      
+
       section += `aws lambda add-permission \\
         --function-name ${functionName} \\
         --statement-id ${statementId} \\
         --action ${action} \\
         --principal ${principal}`;
-      
+
       if (permission.source_arn) {
         section += ` \\
         --source-arn ${permission.source_arn}`;
       }
-      
+
       section += ' | jq .\n';
     });
 
