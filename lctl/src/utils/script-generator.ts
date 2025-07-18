@@ -25,8 +25,7 @@ if aws lambda get-function --function-name ${functionName} &> /dev/null; then
         --handler ${config.handler} \\
         --role ${config.role} \\
         --timeout ${config.timeout || 3} \\
-        --memory-size ${config.memory || 128} \\
-        --architectures ${config.architecture || 'x86_64'}${this.generateEnvironmentVariablesFlag(config)}${this.generateLayersFlag(config)} | jq .
+        --memory-size ${config.memory || 128}${this.generateEnvironmentVariablesFlag(config)}${this.generateLayersFlag(config)}${this.generateDescriptionFlag(config)} | jq .
 else
     echo "Creating new Lambda function: ${functionName}"
     aws lambda create-function --function-name ${functionName} \\
