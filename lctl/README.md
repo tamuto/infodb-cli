@@ -1,62 +1,93 @@
 # lctl - Lambda Control Tool
 
 ## 概要
-AWS Lambda関数を簡単に管理するためのCLIツール。内部的にAWS CLIを呼び出してLambda関数の作成、更新、削除を行う。
+AWS Lambda関数を簡単に管理するためのCLIツール。YAML設定ファイルによる設定管理と、内部的なAWS CLIを使用したLambda関数の作成、更新、削除を行います。
 
 ## インストール・実行方法
 ```bash
-pnpx @infodb/lctl [コマンド] [関数名] [オプション]
+pnpx @infodb/lctl [コマンド] [設定ファイル名] [オプション]
+```
+
+## 基本的な使用方法
+
+### 1. プロジェクト構成を作成
+```
+project/
+├── configs/                # 設定ファイル（必須）
+│   ├── my-function.yaml
+│   └── other-function.yaml
+├── functions/              # Lambda関数コード（必須）
+│   ├── my-function.py
+│   ├── requirements.txt
+│   └── utils.py
+└── other-files/
+```
+
+### 2. YAML設定ファイルを作成
+`configs/my-function.yaml`:
+```yaml
+# 基本設定
+function_name: my_function  # 実際のLambda関数名
+runtime: python3.12
+handler: my_function.handler
+role: arn:aws:iam::123456789012:role/lambda-execution-role
+
+# ファイル設定
+files:
+  - my_function.py
+  - requirements.txt
+
+# 環境変数
+environment:
+  ENV: production
+
+# 権限設定
+permissions:
+  - service: apigateway
+    source_arn: "arn:aws:execute-api:us-east-1:123456789012:*"
+```
+
+### 3. デプロイ実行
+```bash
+# AWS認証情報を設定してデプロイ
+pnpx @infodb/lctl deploy my-function
 ```
 
 ## コマンド一覧
 
 ### 1. deploy - Lambda関数のデプロイ（作成・更新）
 ```bash
-pnpx @infodb/lctl deploy <function-name> [オプション]
+pnpx @infodb/lctl deploy <config-name> [オプション]
 ```
 
-関数が存在しない場合は作成し、存在する場合は更新します。
-
-**設定の優先順位:**
-1. コマンドラインオプション (最優先)
-2. `configs/<function-name>.yaml` 設定ファイル
-3. デフォルト値
-
 **必須引数:**
-- `function-name`: デプロイするLambda関数名
+- `config-name`: 設定ファイル名（.yaml拡張子は不要）
 
 **オプション:**
-- `--runtime <runtime>`: ランタイム環境 (デフォルト: python3.12)
-- `--handler <handler>`: ハンドラー関数 (デフォルト: {function-name}.handler)
-- `--role <role-arn>`: IAMロールARN (新規作成時に必須)
-- `--config <directory>`: 設定ファイルのディレクトリ (デフォルト: configs)
-- `--function <directory>`: 関数ファイルのディレクトリ (デフォルト: functions)
+- `--verbose`: 詳細なログを出力
 
 **例:**
 ```bash
-# 最もシンプルな使用方法（functionsディレクトリのファイルを自動ZIP化）
-pnpx @infodb/lctl deploy my-function --role arn:aws:iam::123456789012:role/lambda-role
+# 基本的な使用方法
+pnpx @infodb/lctl deploy my-function
 
-# YAML設定ファイルを使用（推奨）
-pnpx @infodb/lctl deploy my-function  # configs/my-function.yaml から設定を読み込み
+# 詳細ログ付き
+pnpx @infodb/lctl deploy my-function --verbose
 
-# 環境変数を使ってフレキシブルなデプロイ
-AWS_ROLE_ARN=arn:aws:iam::123456789012:role/lambda-role ENV=prod pnpx @infodb/lctl deploy my-function
-
-# カスタム設定ディレクトリを使用
-pnpx @infodb/lctl deploy my-function --config environments/prod
-
-# カスタム関数ディレクトリを使用
-pnpx @infodb/lctl deploy my-function --function src
+# 環境変数を使用
+ENV_NAME=prod DB_HOST=prod.example.com pnpx @infodb/lctl deploy my-function
 ```
 
 ### 2. delete - Lambda関数の削除
 ```bash
-pnpx @infodb/lctl delete <function-name>
+pnpx @infodb/lctl delete <config-name> [オプション]
 ```
 
 **必須引数:**
-- `function-name`: 削除するLambda関数名
+- `config-name`: 設定ファイル名（.yaml拡張子は不要）
+
+**オプション:**
+- `--verbose`: 詳細なログを出力
 
 **例:**
 ```bash
@@ -65,11 +96,14 @@ pnpx @infodb/lctl delete my-function
 
 ### 3. info - Lambda関数の詳細情報表示
 ```bash
-pnpx @infodb/lctl info <function-name>
+pnpx @infodb/lctl info <config-name> [オプション]
 ```
 
 **必須引数:**
-- `function-name`: 情報を表示するLambda関数名
+- `config-name`: 設定ファイル名（.yaml拡張子は不要）
+
+**オプション:**
+- `--verbose`: 詳細なログを出力
 
 **例:**
 ```bash
@@ -78,23 +112,14 @@ pnpx @infodb/lctl info my-function
 
 ### 4. export - デプロイメントスクリプトの出力
 ```bash
-pnpx @infodb/lctl export <function-name> [オプション]
+pnpx @infodb/lctl export <config-name> [オプション]
 ```
 
-デプロイ用のバッシュスクリプトを生成して保存します。
-
 **必須引数:**
-- `function-name`: Lambda関数名
+- `config-name`: 設定ファイル名（.yaml拡張子は不要）
 
 **オプション:**
-- `--runtime <runtime>`: ランタイム環境 (デフォルト: python3.12)
-- `--handler <handler>`: ハンドラー関数 (デフォルト: {function-name}.handler)
-- `--role <role-arn>`: IAMロールARN (新規作成時に必須)
-- `--config <directory>`: 設定ファイルのディレクトリ (デフォルト: configs)
-- `--function <directory>`: 関数ファイルのディレクトリ (デフォルト: functions)
-- `--output <file>`: 出力ファイルパス (デフォルト: deploy-{function-name}.sh)
-- `--region <region>`: AWSリージョン
-- `--profile <profile>`: AWSプロファイル
+- `--output <file>`: 出力ファイルパス（デフォルト: deploy-{config-name}.sh）
 - `--verbose`: 詳細なログを出力
 
 **例:**
@@ -103,62 +128,35 @@ pnpx @infodb/lctl export <function-name> [オプション]
 pnpx @infodb/lctl export my-function --output deploy-script.sh
 
 # 環境変数を使用してスクリプト出力
-ENV=prod DB_HOST=prod.example.com pnpx @infodb/lctl export my-function
+ENV_NAME=prod DB_HOST=prod.example.com pnpx @infodb/lctl export my-function
 ```
 
-## グローバルオプション
-- `--region <region>`: AWSリージョンを指定 (デフォルト: 環境変数またはAWS設定)
-- `--profile <profile>`: AWSプロファイルを指定
-- `--help, -h`: ヘルプを表示
-- `--version, -v`: バージョンを表示
-- `--verbose`: 詳細なログを出力
+## YAML設定ファイル（必須）
 
-## 環境要件
-- Node.js 16以上
-- AWS CLI v2がインストールされていること
-- 適切なAWS認証情報が設定されていること
+設定ファイルは `configs/` ディレクトリに配置し、`configs/<config-name>.yaml` 形式で命名します。
 
-## プロジェクト構成
-
-推奨されるプロジェクト構成：
-
-```
-project/
-├── configs/                # 設定ファイル
-│   ├── my-function.yaml
-│   └── other-function.yaml
-├── functions/              # Lambda関数コード
-│   ├── my-function.py
-│   ├── requirements.txt
-│   └── utils.py
-└── other-files/
-```
-
-## YAML設定ファイル
-
-設定ファイルは `configs/` ディレクトリ（デフォルト）から自動的に読み込まれます。  
-Lambda関数のコードは `functions/` ディレクトリ（デフォルト）から読み込まれます。
-
-### ファイル名の規則
-- `configs/<function-name>.yaml` (例: `configs/my-function.yaml`)
-- `--config` オプションでディレクトリを変更可能
-- `--function` オプションで関数ディレクトリを変更可能
-
-### YAML設定例
+### 基本的な設定例
 
 ```yaml
-# my-function.yaml
+# configs/my-function.yaml
+
+# 関数名設定（オプション）
+function_name: ${ENV_NAME}_my_function  # 環境変数を使用した動的命名
+# function_name: my_function             # 固定名
+# 未設定の場合、設定ファイル名（my-function）を使用
+
+# 基本設定
 runtime: python3.12
-handler: my-function.handler
-role: ${AWS_ROLE_ARN}
+handler: my_function.handler
+role: arn:aws:iam::123456789012:role/lambda-execution-role
 architecture: x86_64  # x86_64 または arm64
 memory: 256
 timeout: 30
 description: "マイ Lambda 関数"
 
-# 依存ファイルの指定（functionsディレクトリ内の相対パス）
+# デプロイするファイル（functionsディレクトリ内の相対パス）
 files:
-  - my-function.py
+  - my_function.py
   - requirements.txt
   - utils.py
   - "lib/**/*.py"  # glob パターンも使用可能
@@ -168,10 +166,19 @@ environment:
   DB_HOST: ${DB_HOST}
   DB_PORT: ${DB_PORT}
   API_KEY: ${API_KEY}
-  ENV: ${ENV}
+  ENV: ${ENV_NAME}
+
+# 権限設定（外部サービスからの呼び出し許可）
+permissions:
+  - service: apigateway
+    source_arn: "arn:aws:execute-api:us-east-1:123456789012:*"
+    statement_id: "api-gateway-invoke"
+  - service: events
+    source_arn: "arn:aws:events:us-east-1:123456789012:rule/my-rule"
+    statement_id: "eventbridge-invoke"
 
 # ログ設定
-log_retention_days: 7          # ログ保持期間（日）
+log_retention_days: 14         # ログ保持期間（日）
 auto_create_log_group: true    # ロググループ自動作成
 
 # ZIP除外設定
@@ -179,16 +186,22 @@ zip_excludes:                  # ZIP化時の除外パターン
   - "*.git*"
   - "node_modules/*"
   - "*.zip"
-  - "dist/*"
-  - ".DS_Store"
+  - "*.pyc"
+  - "__pycache__/*"
 
-# リザーブド同時実行数
+# タグ
+tags:
+  Environment: ${ENV_NAME}
+  Team: backend
+  Project: my-project
+```
+
+### 高度な設定例
+
+```yaml
+# 高度な設定
 reserved_concurrency: 100
-
-# プロビジョンド同時実行設定
 provisioned_concurrency: 10
-
-# エフェメラルストレージ
 ephemeral_storage: 1024  # MB (512-10240)
 
 # レイヤー
@@ -207,58 +220,118 @@ vpc:
 # デッドレターキュー
 dead_letter_queue:
   target_arn: arn:aws:sqs:us-east-1:123456789012:my-dlq
+```
 
-# タグ
+### 権限設定（permissions）
+
+外部サービスやIAMユーザー・ロールからLambda関数を呼び出すための権限を自動設定します。
+
+#### サービス別の権限設定
+```yaml
+permissions:
+  - service: apigateway              # API Gateway
+    source_arn: "arn:aws:execute-api:region:account:api-id/*"
+  - service: events                  # EventBridge
+    source_arn: "arn:aws:events:region:account:rule/rule-name"
+  - service: sns                     # SNS
+    source_arn: "arn:aws:sns:region:account:topic-name"
+  - service: s3                      # S3
+    source_arn: "arn:aws:s3:::bucket-name"
+  - service: elasticloadbalancing    # ALB
+    source_arn: "arn:aws:elasticloadbalancing:region:account:targetgroup/name"
+```
+
+#### IAMユーザー・ロールの直接指定
+```yaml
+permissions:
+  - principal: "arn:aws:iam::123456789012:user/MyUser"
+    statement_id: "allow-my-user"
+    action: "lambda:InvokeFunction"
+  - principal: "arn:aws:iam::123456789012:role/MyRole"
+    statement_id: "allow-my-role"
+  - principal: "123456789012"          # AWS Account ID
+    statement_id: "allow-account"
+```
+
+#### 混合設定例
+```yaml
+permissions:
+  # サービス別設定（principalは自動設定）
+  - service: apigateway
+    source_arn: "arn:aws:execute-api:region:account:api-id/*"
+    statement_id: "api-gateway-invoke"
+  
+  # IAMユーザー直接指定
+  - principal: "arn:aws:iam::123456789012:user/DeployUser"
+    statement_id: "deploy-user-invoke"
+    action: "lambda:InvokeFunction"
+  
+  # IAMロール直接指定
+  - principal: "arn:aws:iam::123456789012:role/CrossAccountRole"
+    statement_id: "cross-account-invoke"
+    source_arn: "arn:aws:iam::123456789012:role/CrossAccountRole"
+```
+
+**注意**: `service` または `principal` のどちらか一方を必ず指定してください。両方指定した場合は `principal` が優先されます。
+
+### 環境変数による動的設定
+
+```yaml
+# 環境変数を使用した設定
+function_name: ${ENV_NAME}_my_function
+role: arn:aws:iam::123456789012:role/lambda-role-${ENV_NAME}
+environment:
+  DB_HOST: ${DB_HOST}
+  ENV: ${ENV_NAME}
 tags:
-  Environment: production
-  Team: backend
-  Project: my-project
+  Environment: ${ENV_NAME}
 ```
 
-### YAML設定項目
-
-| 項目 | 型 | 説明 | 例 |
-|------|----|----|-----|
-| `runtime` | string | ランタイム環境 | `python3.12`, `nodejs18.x` |
-| `handler` | string | ハンドラー関数 | `my-function.handler`, `app.lambda_handler` |
-| `role` | string | IAMロールARN | `arn:aws:iam::123456789012:role/...` |
-| `architecture` | string | アーキテクチャ | `x86_64`, `arm64` |
-| `memory` | number | メモリサイズ(MB) | `128`, `256`, `512` |
-| `timeout` | number | タイムアウト時間(秒) | `3`, `30`, `900` |
-| `description` | string | 関数の説明 | `"マイ Lambda 関数"` |
-| `reserved_concurrency` | number | リザーブド同時実行数 | `100`, `1000` |
-| `provisioned_concurrency` | number | プロビジョンド同時実行 | `10`, `50` |
-| `ephemeral_storage` | number | エフェメラルストレージ(MB) | `512`, `1024`, `10240` |
-| `files` | array | 含めるファイル・ディレクトリ | `["src/", "*.py"]` |
-| `environment` | object | 環境変数 | `{DB_HOST: "localhost"}` |
-| `log_retention_days` | number | ログ保持期間（日） | `7`, `14`, `30` |
-| `auto_create_log_group` | boolean | ロググループ自動作成 | `true`, `false` |
-| `zip_excludes` | array | ZIP化時の除外パターン | `["*.git*", "node_modules/*"]` |
-| `layers` | array | レイヤーARN | `["arn:aws:lambda:..."]` |
-| `vpc` | object | VPC設定 | `{subnets: [...], security_groups: [...]}` |
-| `dead_letter_queue` | object | DLQ設定 | `{target_arn: "arn:aws:sqs:..."}` |
-| `tags` | object | タグ | `{Environment: "prod"}` |
-
-### ファイル処理の仕組み
-
-1. YAMLファイルの `files` に指定されたファイル・ディレクトリを自動的にZIP化
-2. YAMLファイルがない場合は、カレントディレクトリの全ファイルをZIP化
-3. glob パターンをサポート（`**/*.py`, `src/**/*` など）
-4. 一時的なZIPファイルを作成してデプロイ後に削除
-
-### 変数の展開
-
-**環境変数の展開:**
-- `${VAR_NAME}` 形式で現在の環境変数を参照可能
-- 存在しない環境変数を参照した場合はエラー
-
-**環境変数を使用した環境管理:**
+実行時に環境変数を設定：
 ```bash
-AWS_ROLE_ARN=arn:aws:iam::123456789012:role/lambda-role ENV=prod pnpx @infodb/lctl deploy my-function
+ENV_NAME=prod DB_HOST=prod.example.com pnpx @infodb/lctl deploy my-function
 ```
 
-## エラーハンドリング
-- AWS CLIコマンドが失敗した場合、適切なエラーメッセージを表示
-- 必須パラメータが不足している場合、使用方法を表示
-- 存在しない関数に対する操作の場合、エラーメッセージを表示
-- YAML設定ファイルの構文エラーがある場合、詳細なエラーメッセージを表示
+## 環境要件
+
+- Node.js 16以上
+- AWS CLI v2がインストールされていること
+- 適切なAWS認証情報が設定されていること
+- `configs/` と `functions/` ディレクトリが存在すること
+
+## AWS認証情報の設定
+
+以下のいずれかの方法でAWS認証情報を設定してください：
+
+1. AWS CLIによる設定：
+```bash
+aws configure
+```
+
+2. 環境変数による設定：
+```bash
+export AWS_ACCESS_KEY_ID=your-access-key
+export AWS_SECRET_ACCESS_KEY=your-secret-key
+export AWS_DEFAULT_REGION=us-east-1
+```
+
+3. IAMロールの使用（EC2、Lambda等）
+
+## トラブルシューティング
+
+### よくある問題
+1. **AWS CLI not found**: AWS CLI v2がインストールされていることを確認
+2. **権限エラー**: 適切なIAMロールとポリシーが設定されていることを確認
+3. **YAML設定ファイルが見つからない**: `configs/<config-name>.yaml` が存在することを確認
+4. **YAML構文エラー**: YAML ファイルの構文を確認
+5. **環境変数が見つからない**: `${VAR_NAME}` で参照する環境変数が設定されていることを確認
+
+### デバッグ
+```bash
+# 詳細ログ出力
+pnpx @infodb/lctl deploy my-function --verbose
+
+# スクリプト出力してデバッグ
+pnpx @infodb/lctl export my-function --output debug-script.sh
+bash debug-script.sh
+```

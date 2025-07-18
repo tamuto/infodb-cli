@@ -32,13 +32,14 @@ AWS Lambda関数を簡単に管理するためのCLIツール。内部的にバ�
 
 ### 設定システム
 
-#### YAML設定ファイル
-ファイル名: `<function-name>.yaml`
+#### YAML設定ファイル（必須）
+ファイル名: `configs/<function-name>.yaml`
 
 ```yaml
 # Lambda 基本設定
+function_name: ${ENV_NAME}_my_function  # Optional: カスタム関数名
 runtime: python3.12
-handler: my-function.handler
+handler: my_function.handler
 role: arn:aws:iam::123456789012:role/lambda-execution-role
 architecture: x86_64
 memory: 256
@@ -53,8 +54,22 @@ files:
 
 # 環境変数
 environment:
-  DB_HOST: $db_host
+  DB_HOST: ${DB_HOST}
   API_KEY: ${API_KEY}
+
+# 権限設定
+permissions:
+  # AWS Service permissions
+  - service: apigateway
+    source_arn: "arn:aws:execute-api:region:account:api-id/*"
+  - service: events
+    source_arn: "arn:aws:events:region:account:rule/rule-name"
+  
+  # IAM User/Role direct permissions
+  - principal: "arn:aws:iam::123456789012:user/DeployUser"
+    statement_id: "deploy-user-invoke"
+  - principal: "arn:aws:iam::123456789012:role/CrossAccountRole"
+    statement_id: "cross-account-invoke"
 
 # AWS Lambda 高度な設定
 layers:
@@ -77,15 +92,14 @@ zip_excludes:
 ```
 
 #### 変数展開システム
-1. **パラメータ変数**: `$key` - `--params key=value` で指定
-2. **環境変数**: `${VAR_NAME}` - プロセス環境変数から取得
-3. **優先順位**: パラメータ変数 > 環境変数
+1. **環境変数**: `${VAR_NAME}` - プロセス環境変数から取得
+2. **関数名**: `function_name` 未設定時は設定ファイル名を使用
 
 ### スクリプト生成システム
 
 deployコマンド実行時の流れ：
-1. YAML設定読み込み
-2. 変数展開（params、環境変数）
+1. YAML設定読み込み（必須）
+2. 変数展開（環境変数）
 3. バッシュスクリプト生成
 4. スクリプト実行
 5. 一時ファイル削除
@@ -94,6 +108,7 @@ deployコマンド実行時の流れ：
 - 関数存在チェック（create vs update）
 - ZIP作成（YAML files 設定に基づく）
 - 環境変数、レイヤー、VPC等の設定
+- 権限設定（add-permission）
 - ロググループ作成＆保持期間設定
 - jq による結果整形
 
@@ -142,11 +157,8 @@ lctl/
 
 ### 基本的な使用方法
 ```bash
-# YAML設定ファイルを使用したデプロイ
+# YAML設定ファイルを使用したデプロイ（configs/my-function.yaml が必要）
 pnpx @infodb/lctl deploy my-function
-
-# パラメータ付きデプロイ
-pnpx @infodb/lctl deploy my-function --params env=prod --params db_host=prod.example.com
 
 # スクリプト出力
 pnpx @infodb/lctl export my-function --output deploy-script.sh
@@ -160,33 +172,46 @@ pnpx @infodb/lctl info my-function
 
 ### サンプルYAML設定
 ```yaml
-# my-function.yaml
+# configs/my-function.yaml
+function_name: ${ENV_NAME}_my_function  # Optional: custom function name with environment variable
 runtime: python3.12
-handler: my-function.handler
-role: arn:aws:iam::123456789012:role/lambda-execution-role-$env
+handler: my_function.handler
+role: arn:aws:iam::123456789012:role/lambda-execution-role
 
 files:
   - src/
   - requirements.txt
 
 environment:
-  DB_HOST: $db_host
-  ENV: $env
+  DB_HOST: ${DB_HOST}
+  ENV: ${ENV_NAME}
+
+# Permissions for external services
+permissions:
+  - service: apigateway
+    source_arn: "arn:aws:execute-api:us-east-1:123456789012:*"
+    statement_id: "api-gateway-invoke"
+  - service: events
+    source_arn: "arn:aws:events:us-east-1:123456789012:rule/my-rule"
 
 log_retention_days: 14
 zip_excludes:
   - "*.pyc"
   - "__pycache__/*"
   - ".pytest_cache/*"
+
+tags:
+  Environment: ${ENV_NAME}
+  Project: my-project
 ```
 
 ### 実行例
 ```bash
-# 開発環境デプロイ
-pnpx @infodb/lctl deploy my-function --params env=dev --params db_host=localhost
+# 環境変数を設定してデプロイ
+ENV_NAME=dev DB_HOST=localhost pnpx @infodb/lctl deploy my-function
 
 # 本番環境デプロイ
-pnpx @infodb/lctl deploy my-function --params env=prod --params db_host=prod.db.example.com
+ENV_NAME=prod DB_HOST=prod.db.example.com pnpx @infodb/lctl deploy my-function
 ```
 
 ## トラブルシューティング
@@ -194,8 +219,9 @@ pnpx @infodb/lctl deploy my-function --params env=prod --params db_host=prod.db.
 ### よくある問題
 1. **AWS CLI not found**: AWS CLI v2がインストールされていることを確認
 2. **権限エラー**: 適切なIAMロールとポリシーが設定されていることを確認
-3. **YAML構文エラー**: YAML ファイルの構文を確認
-4. **環境変数が見つからない**: `${VAR_NAME}` で参照する環境変数が設定されていることを確認
+3. **YAML設定ファイルが見つからない**: `configs/<function-name>.yaml` が存在することを確認
+4. **YAML構文エラー**: YAML ファイルの構文を確認
+5. **環境変数が見つからない**: `${VAR_NAME}` で参照する環境変数が設定されていることを確認
 
 ### デバッグ
 ```bash

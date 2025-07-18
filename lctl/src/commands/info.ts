@@ -1,10 +1,9 @@
 import chalk from 'chalk';
 import { AwsCliManager } from '../utils/aws-cli';
+import { ConfigManager } from '../utils/config';
 import { Logger } from '../utils/logger';
 
 export interface InfoOptions {
-  region?: string;
-  profile?: string;
   verbose?: boolean;
 }
 
@@ -14,8 +13,13 @@ export async function infoCommand(functionName: string, options: InfoOptions): P
   try {
     logger.info(`Getting information for Lambda function: ${chalk.cyan(functionName)}`);
 
-    const awsCliManager = new AwsCliManager(options.region, options.profile, logger);
-    const functionInfo = await awsCliManager.getFunctionInfo(functionName);
+    // Load configuration to get actual function name
+    const configManager = new ConfigManager(functionName, logger);
+    const config = await configManager.loadConfig({});
+    const actualFunctionName = config.function_name || functionName;
+
+    const awsCliManager = new AwsCliManager(undefined, undefined, logger);
+    const functionInfo = await awsCliManager.getFunctionInfo(actualFunctionName);
 
     // Display function information in a readable format
     console.log(chalk.green('\n📋 Lambda Function Information:'));

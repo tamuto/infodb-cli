@@ -1,1 +1,45 @@
+# Example Lambda function configuration
+# function_name: ${ENV_NAME}_test_lambda  # Optional: custom function name with environment variable
+function_name: test_lambda  # If not specified, uses the config file name
+runtime: python3.12
+handler: test_lambda.handler
 role: arn:aws:iam::123456789012:role/lambda-execution-role
+memory: 128
+timeout: 30
+description: "Test Lambda function for lctl"
+
+# Files to include in deployment package
+files:
+  - test_lambda.py
+  - requirements.txt
+
+# Environment variables
+environment:
+  ENV: development
+  DEBUG: "true"
+
+# Permissions for external services and IAM users/roles
+permissions:
+  # AWS Service permissions
+  - service: apigateway
+    source_arn: "arn:aws:execute-api:us-east-1:123456789012:*"
+    statement_id: "api-gateway-invoke"
+  - service: events
+    source_arn: "arn:aws:events:us-east-1:123456789012:rule/test-rule"
+    statement_id: "eventbridge-invoke"
+  
+  # IAM User/Role direct permissions
+  - principal: "arn:aws:iam::123456789012:user/DeployUser"
+    statement_id: "deploy-user-invoke"
+    action: "lambda:InvokeFunction"
+  - principal: "arn:aws:iam::123456789012:role/CrossAccountRole"
+    statement_id: "cross-account-invoke"
+
+# Log settings
+log_retention_days: 14
+auto_create_log_group: true
+
+# Tags
+tags:
+  Environment: development
+  Project: lctl-test

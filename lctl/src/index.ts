@@ -12,20 +12,13 @@ const program = new Command();
 program
   .name('lctl')
   .description('AWS Lambda Control Tool - Simple CLI for managing Lambda functions')
-  .version('0.4.0');
+  .version('0.5.0');
 
 // Deploy command
 program
   .command('deploy')
   .description('Deploy Lambda function (create or update)')
-  .argument('<function-name>', 'Lambda function name')
-  .option('--runtime <runtime>', 'Runtime environment', 'python3.12')
-  .option('--handler <handler>', 'Handler function')
-  .option('--role <role-arn>', 'IAM role ARN (required for new functions)')
-  .option('--config <directory>', 'Config directory path', 'configs')
-  .option('--function <directory>', 'Functions directory path', 'functions')
-  .option('--region <region>', 'AWS region')
-  .option('--profile <profile>', 'AWS profile')
+  .argument('<function-name>', 'Configuration file name (without .yaml extension)')
   .option('--verbose', 'Verbose output')
   .action(deployCommand);
 
@@ -33,9 +26,7 @@ program
 program
   .command('delete')
   .description('Delete Lambda function')
-  .argument('<function-name>', 'Lambda function name')
-  .option('--region <region>', 'AWS region')
-  .option('--profile <profile>', 'AWS profile')
+  .argument('<function-name>', 'Configuration file name (without .yaml extension)')
   .option('--verbose', 'Verbose output')
   .action(deleteCommand);
 
@@ -43,9 +34,7 @@ program
 program
   .command('info')
   .description('Show Lambda function information')
-  .argument('<function-name>', 'Lambda function name')
-  .option('--region <region>', 'AWS region')
-  .option('--profile <profile>', 'AWS profile')
+  .argument('<function-name>', 'Configuration file name (without .yaml extension)')
   .option('--verbose', 'Verbose output')
   .action(infoCommand);
 
@@ -53,15 +42,8 @@ program
 program
   .command('export')
   .description('Export deployment script')
-  .argument('<function-name>', 'Lambda function name')
-  .option('--runtime <runtime>', 'Runtime environment', 'python3.12')
-  .option('--handler <handler>', 'Handler function')
-  .option('--role <role-arn>', 'IAM role ARN (required for new functions)')
-  .option('--config <directory>', 'Config directory path', 'configs')
-  .option('--function <directory>', 'Functions directory path', 'functions')
+  .argument('<function-name>', 'Configuration file name (without .yaml extension)')
   .option('--output <file>', 'Output script file path')
-  .option('--region <region>', 'AWS region')
-  .option('--profile <profile>', 'AWS profile')
   .option('--verbose', 'Verbose output')
   .action(exportCommand);
 

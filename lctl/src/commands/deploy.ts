@@ -5,13 +5,6 @@ import { ScriptGenerator } from '../utils/script-generator';
 import { Logger } from '../utils/logger';
 
 export interface DeployOptions {
-  runtime?: string;
-  handler?: string;
-  role?: string;
-  config?: string;
-  function?: string;
-  region?: string;
-  profile?: string;
   verbose?: boolean;
 }
 
@@ -23,32 +16,27 @@ export async function deployCommand(functionName: string, options: DeployOptions
 
     // Load configuration
     const configManager = new ConfigManager(functionName, logger);
-    const config = await configManager.loadConfig({
-      runtime: options.runtime,
-      handler: options.handler,
-      role: options.role,
-    }, options.config, options.function);
+    const config = await configManager.loadConfig({});
 
     logger.verbose('Configuration loaded:', config);
 
     // Generate and execute deployment script
     const scriptGenerator = new ScriptGenerator(logger);
-    const script = scriptGenerator.generateDeployScript(functionName, config);
+    const actualFunctionName = config.function_name || functionName;
+    const script = scriptGenerator.generateDeployScript(actualFunctionName, config);
     const scriptPath = await scriptGenerator.saveScript(functionName, script);
 
     try {
       // Set environment variables for the script
       const env = {
         ...process.env,
-        AWS_PROFILE: options.profile || process.env.AWS_PROFILE || 'default',
-        AWS_REGION: options.region || process.env.AWS_REGION || 'ap-northeast-1',
       };
 
       // Execute the script
       logger.info('Executing deployment script...');
       await executeScript(scriptPath, env, logger);
 
-      logger.success(`✅ Lambda function ${chalk.cyan(functionName)} deployed successfully!`);
+      logger.success(`✅ Lambda function ${chalk.cyan(actualFunctionName)} deployed successfully!`);
 
     } finally {
       // Clean up script file
