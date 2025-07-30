@@ -19,7 +19,7 @@ project/
 ├── functions/              # Lambda関数コード（必須）
 │   ├── my-function.py
 │   └── utils.py
-└── lambda-function.zip     # 生成されるデプロイパッケージ
+└── my-function.zip         # 生成されるデプロイパッケージ
 ```
 
 ### 2. YAML設定ファイルを作成
@@ -78,7 +78,7 @@ pnpx @infodb/lctl makezip <config-name> [オプション]
 **機能:**
 - `requirements`セクションがあれば自動的にpip installを実行
 - 既存のvendorフォルダを削除
-- 適切なディレクトリ構造で`lambda-function.zip`を作成
+- 適切なディレクトリ構造で`<function-name>.zip`を作成
 
 **例:**
 ```bash
@@ -123,7 +123,7 @@ pnpx @infodb/lctl export <config-name> [オプション]
 - `--verbose`: 詳細なログを出力
 
 **機能:**
-- `lambda-function.zip`の存在チェックを含むスクリプトを生成
+- `<function-name>.zip`の存在チェックを含むスクリプトを生成
 - CI/CD環境で個別実行するのに適している
 
 **例:**

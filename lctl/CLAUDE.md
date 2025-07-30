@@ -106,9 +106,9 @@ zip_excludes:
 #### 新しいデプロイフロー：
 1. **makezip**: ZIPパッケージ作成
    - requirements があれば pip install で vendor/ に依存関係インストール
-   - 適切なディレクトリ構造で `lambda-function.zip` 作成
+   - 適切なディレクトリ構造で `<function-name>.zip` 作成
 2. **export**: デプロイスクリプト生成
-   - `lambda-function.zip` の存在チェック含む
+   - `<function-name>.zip` の存在チェック含む
 3. **deploy**: 上記2つを実行してスクリプト実行
 
 #### deployコマンド実行時の流れ：
@@ -118,7 +118,7 @@ zip_excludes:
 4. 一時ファイル削除
 
 #### 生成されるスクリプトの特徴：
-- ZIP存在チェック（`lambda-function.zip`）
+- ZIP存在チェック（`<function-name>.zip`）
 - 関数存在チェック（create vs update）
 - 環境変数、レイヤー、VPC等の設定
 - 権限設定（add-permission）

@@ -23,7 +23,7 @@ export async function makeZipCommand(functionName: string, options: MakeZipOptio
 
     const functionsDir = config.functionsDirectory || 'functions';
     const vendorDir = path.join(functionsDir, 'vendor');
-    const zipFileName = 'lambda-function.zip';
+    const zipFileName = `${functionName}.zip`;
 
     // Remove existing vendor directory if it exists
     try {

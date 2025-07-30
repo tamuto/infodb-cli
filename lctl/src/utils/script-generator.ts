@@ -14,10 +14,10 @@ set -eu
 # Function: ${functionName}
 # Generated at: ${new Date().toISOString()}
 
-${this.generateZipSection(config)}${this.generateEnvironmentVariablesSection(config)}${this.generateLayersSection(config)}# Lambda関数の存在を確認
+${this.generateZipSection(functionName, config)}${this.generateEnvironmentVariablesSection(config)}${this.generateLayersSection(config)}# Lambda関数の存在を確認
 if aws lambda get-function --function-name ${functionName} &> /dev/null; then
     echo "Updating existing Lambda function: ${functionName}"
-    aws lambda update-function-code --function-name ${functionName} --zip-file fileb://lambda-function.zip | jq .
+    aws lambda update-function-code --function-name ${functionName} --zip-file fileb://${functionName}.zip | jq .
     
     # 関数がActiveになるまで待機
     aws lambda wait function-active --function-name ${functionName}
@@ -35,7 +35,7 @@ if aws lambda get-function --function-name ${functionName} &> /dev/null; then
 else
     echo "Creating new Lambda function: ${functionName}"
     aws lambda create-function --function-name ${functionName} \\
-        --zip-file fileb://lambda-function.zip \\
+        --zip-file fileb://${functionName}.zip \\
         --handler ${config.handler} \\
         --runtime ${config.runtime} \\
         --architectures ${config.architecture || 'x86_64'} \\
@@ -51,7 +51,7 @@ ${this.generatePermissionsSection(functionName, config)}
 
 ${this.generateLogGroupSection(functionName, config)}
 
-rm lambda-function.zip
+rm ${functionName}.zip
 
 echo "✅ Lambda function ${functionName} deployed successfully!"
 `;
@@ -60,10 +60,11 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
   }
 
 
-  private generateZipSection(config: LambdaConfig): string {
+  private generateZipSection(functionName: string, config: LambdaConfig): string {
+    const zipFileName = `${functionName}.zip`;
     let section = '# Check for deployment package\n';
-    section += 'if [ ! -f "lambda-function.zip" ]; then\n';
-    section += '  echo "Error: lambda-function.zip not found. Please run \'makezip\' command first."\n';
+    section += `if [ ! -f "${zipFileName}" ]; then\n`;
+    section += `  echo "Error: ${zipFileName} not found. Please run 'makezip' command first."\n`;
     section += '  exit 1\n';
     section += 'fi\n';
     section += '\n';
