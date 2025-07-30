@@ -16,6 +16,7 @@ export interface LambdaConfig {
   provisioned_concurrency?: number;
   ephemeral_storage?: number;
   files?: string[];
+  requirements?: string[];
   environment?: Record<string, string>;
   layers?: string[];
   vpc?: {
@@ -98,6 +99,7 @@ export class ConfigManager {
       provisioned_concurrency: yamlConfig.provisioned_concurrency,
       ephemeral_storage: yamlConfig.ephemeral_storage,
       files: yamlConfig.files || ['.'],
+      requirements: yamlConfig.requirements || [],
       environment: yamlConfig.environment || {},
       layers: yamlConfig.layers || [],
       vpc: yamlConfig.vpc,

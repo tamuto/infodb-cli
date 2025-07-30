@@ -1,8 +1,9 @@
 import chalk from 'chalk';
 import { spawn } from 'child_process';
-import { ConfigManager } from '../utils/config';
 import { ScriptGenerator } from '../utils/script-generator';
 import { Logger } from '../utils/logger';
+import { makeZipCommand } from './makezip';
+import { exportCommand } from './export';
 
 export interface DeployOptions {
   verbose?: boolean;
@@ -14,33 +15,32 @@ export async function deployCommand(functionName: string, options: DeployOptions
   try {
     logger.info(`Deploying Lambda function: ${chalk.cyan(functionName)}`);
 
-    // Load configuration
-    const configManager = new ConfigManager(functionName, logger);
-    const config = await configManager.loadConfig({});
+    // Step 1: Create deployment package
+    logger.info('Step 1: Creating deployment package...');
+    await makeZipCommand(functionName, { verbose: options.verbose });
 
-    logger.verbose('Configuration loaded:', config);
+    // Step 2: Export deployment script
+    logger.info('Step 2: Generating deployment script...');
+    const scriptFileName = `deploy-${functionName}.sh`;
+    await exportCommand(functionName, { 
+      output: scriptFileName, 
+      verbose: options.verbose 
+    });
 
-    // Generate and execute deployment script
-    const scriptGenerator = new ScriptGenerator(logger);
-    const actualFunctionName = config.function_name || functionName;
-    const script = scriptGenerator.generateDeployScript(actualFunctionName, config);
-    const scriptPath = await scriptGenerator.saveScript(functionName, script);
-
+    // Step 3: Execute the deployment script
+    logger.info('Step 3: Executing deployment script...');
     try {
       // Set environment variables for the script
       const env = {
         ...process.env,
       };
 
-      // Execute the script
-      logger.info('Executing deployment script...');
-      await executeScript(scriptPath, env, logger);
-
-      // スクリプト内で成功メッセージが出力されるため、ここでは出力しない
+      await executeScript(scriptFileName, env, logger);
 
     } finally {
       // Clean up script file
-      await scriptGenerator.cleanupScript(scriptPath);
+      const scriptGenerator = new ScriptGenerator(logger);
+      await scriptGenerator.cleanupScript(scriptFileName);
     }
 
   } catch (error) {
