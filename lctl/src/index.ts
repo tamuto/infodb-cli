@@ -6,6 +6,7 @@ import { deployCommand } from './commands/deploy';
 import { deleteCommand } from './commands/delete';
 import { infoCommand } from './commands/info';
 import { exportCommand } from './commands/export';
+import { makeZipCommand } from './commands/makezip';
 
 const program = new Command();
 
@@ -37,6 +38,14 @@ program
   .argument('<function-name>', 'Configuration file name (without .yaml extension)')
   .option('--verbose', 'Verbose output')
   .action(infoCommand);
+
+// MakeZip command
+program
+  .command('makezip')
+  .description('Create deployment ZIP package')
+  .argument('<function-name>', 'Configuration file name (without .yaml extension)')
+  .option('--verbose', 'Verbose output')
+  .action(makeZipCommand);
 
 // Export command
 program

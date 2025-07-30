@@ -18,10 +18,11 @@ AWS Lambda関数を簡単に管理するためのCLIツール。内部的にバ�
 ### 主要コンポーネント
 
 #### 1. コマンド (`src/commands/`)
-- `deploy.ts`: Lambda関数のデプロイ（作成・更新）
+- `makezip.ts`: デプロイパッケージの作成（NEW in v0.8.0+）
+- `deploy.ts`: Lambda関数の完全デプロイ（makezip + export + 実行）
+- `export.ts`: デプロイスクリプトの生成（ZIP前提に変更）
 - `delete.ts`: Lambda関数の削除  
 - `info.ts`: Lambda関数の詳細情報表示
-- `export.ts`: デプロイメントスクリプトの出力
 
 #### 2. ユーティリティ (`src/utils/`)
 - `config.ts`: YAML設定ファイルの読み込みと変数展開
@@ -49,8 +50,13 @@ description: "Lambda関数の説明"
 # ファイル指定
 files:
   - src/
-  - requirements.txt
   - "lib/**/*.py"
+
+# Python依存関係（NEW in v0.8.0+）
+requirements:
+  - requests>=2.28.0
+  - boto3>=1.26.0
+  - pandas>=1.5.0
 
 # 環境変数
 environment:
@@ -95,18 +101,25 @@ zip_excludes:
 1. **環境変数**: `${VAR_NAME}` - プロセス環境変数から取得
 2. **関数名**: `function_name` 未設定時は設定ファイル名を使用
 
-### スクリプト生成システム
+### デプロイメントシステム（v0.8.0+で大幅変更）
 
-deployコマンド実行時の流れ：
-1. YAML設定読み込み（必須）
-2. 変数展開（環境変数）
-3. バッシュスクリプト生成
-4. スクリプト実行
-5. 一時ファイル削除
+#### 新しいデプロイフロー：
+1. **makezip**: ZIPパッケージ作成
+   - requirements があれば pip install で vendor/ に依存関係インストール
+   - 適切なディレクトリ構造で `<function-name>.zip` 作成
+2. **export**: デプロイスクリプト生成
+   - `<function-name>.zip` の存在チェック含む
+3. **deploy**: 上記2つを実行してスクリプト実行
 
-生成されるスクリプトの特徴：
+#### deployコマンド実行時の流れ：
+1. `makezip` 実行（依存関係解決 + ZIP作成）
+2. `export` 実行（スクリプト生成）
+3. 生成されたスクリプト実行（AWS Lambda デプロイ）
+4. 一時ファイル削除
+
+#### 生成されるスクリプトの特徴：
+- ZIP存在チェック（`<function-name>.zip`）
 - 関数存在チェック（create vs update）
-- ZIP作成（YAML files 設定に基づく）
 - 環境変数、レイヤー、VPC等の設定
 - 権限設定（add-permission）
 - ロググループ作成＆保持期間設定
@@ -155,22 +168,22 @@ lctl/
 
 ## 使用例
 
-### 基本的な使用方法
+### 基本的な使用方法（v0.8.0+）
 ```bash
-# YAML設定ファイルを使用したデプロイ（configs/my-function.yaml が必要）
+# 推奨：一括デプロイ
 pnpx @infodb/lctl deploy my-function
 
-# スクリプト出力
-pnpx @infodb/lctl export my-function --output deploy-script.sh
+# 個別実行（CI/CD向け）
+pnpx @infodb/lctl makezip my-function      # ZIPパッケージ作成
+pnpx @infodb/lctl export my-function       # スクリプト生成
+bash deploy-my-function.sh                 # デプロイ実行
 
-# 関数削除
-pnpx @infodb/lctl delete my-function
-
-# 関数情報表示
-pnpx @infodb/lctl info my-function
+# その他のコマンド
+pnpx @infodb/lctl delete my-function       # 関数削除
+pnpx @infodb/lctl info my-function         # 関数情報表示
 ```
 
-### サンプルYAML設定
+### サンプルYAML設定（v0.8.0+）
 ```yaml
 # configs/my-function.yaml
 function_name: ${ENV_NAME}_my_function  # Optional: custom function name with environment variable
@@ -178,15 +191,23 @@ runtime: python3.12
 handler: my_function.handler
 role: arn:aws:iam::123456789012:role/lambda-execution-role
 
+# ファイル指定（requirements.txtは不要になった）
 files:
   - src/
-  - requirements.txt
+  - config.json
 
+# Python依存関係（NEW: 自動インストール）
+requirements:
+  - requests>=2.28.0
+  - boto3>=1.26.0
+  - pandas>=1.5.0
+
+# 環境変数
 environment:
   DB_HOST: ${DB_HOST}
   ENV: ${ENV_NAME}
 
-# Permissions for external services
+# 外部サービスからの権限
 permissions:
   - service: apigateway
     source_arn: "arn:aws:execute-api:us-east-1:123456789012:*"
@@ -199,19 +220,53 @@ zip_excludes:
   - "*.pyc"
   - "__pycache__/*"
   - ".pytest_cache/*"
+  - "vendor/"  # 自動生成されるため除外
 
 tags:
   Environment: ${ENV_NAME}
   Project: my-project
 ```
 
-### 実行例
+### 実行例（v0.8.0+）
 ```bash
 # 環境変数を設定してデプロイ
 ENV_NAME=dev DB_HOST=localhost pnpx @infodb/lctl deploy my-function
 
 # 本番環境デプロイ
 ENV_NAME=prod DB_HOST=prod.db.example.com pnpx @infodb/lctl deploy my-function
+
+# CI/CD環境での段階的デプロイ
+ENV_NAME=prod pnpx @infodb/lctl makezip my-function
+ENV_NAME=prod pnpx @infodb/lctl export my-function
+ENV_NAME=prod bash deploy-my-function.sh
+```
+
+## 開発・リリース手順
+
+### バージョン更新手順
+新しいバージョンをリリースする際は、以下の2つのファイルでバージョン番号を更新する必要があります：
+
+1. **package.json** - パッケージのバージョン
+```bash
+# package.jsonのversionフィールドを更新
+"version": "0.8.0"
+```
+
+2. **src/index.ts** - CLIのversionメソッド
+```bash
+# src/index.tsの.version()メソッドを更新
+.version('0.8.0')
+```
+
+#### バージョン更新の実行例
+```bash
+# 1. package.jsonとsrc/index.tsの両方でバージョンを更新
+# 2. 変更をコミット
+git add package.json src/index.ts
+git commit -m "Bump version to 0.8.0"
+
+# 3. プッシュ
+git push
 ```
 
 ## トラブルシューティング

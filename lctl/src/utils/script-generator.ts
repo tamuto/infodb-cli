@@ -14,10 +14,10 @@ set -eu
 # Function: ${functionName}
 # Generated at: ${new Date().toISOString()}
 
-${this.generateZipSection(config)}${this.generateEnvironmentVariablesSection(config)}${this.generateLayersSection(config)}# Lambda関数の存在を確認
+${this.generateZipSection(functionName, config)}${this.generateEnvironmentVariablesSection(config)}${this.generateLayersSection(config)}# Lambda関数の存在を確認
 if aws lambda get-function --function-name ${functionName} &> /dev/null; then
     echo "Updating existing Lambda function: ${functionName}"
-    aws lambda update-function-code --function-name ${functionName} --zip-file fileb://lambda.zip | jq .
+    aws lambda update-function-code --function-name ${functionName} --zip-file fileb://${functionName}.zip | jq .
     
     # 関数がActiveになるまで待機
     aws lambda wait function-active --function-name ${functionName}
@@ -35,7 +35,7 @@ if aws lambda get-function --function-name ${functionName} &> /dev/null; then
 else
     echo "Creating new Lambda function: ${functionName}"
     aws lambda create-function --function-name ${functionName} \\
-        --zip-file fileb://lambda.zip \\
+        --zip-file fileb://${functionName}.zip \\
         --handler ${config.handler} \\
         --runtime ${config.runtime} \\
         --architectures ${config.architecture || 'x86_64'} \\
@@ -51,7 +51,7 @@ ${this.generatePermissionsSection(functionName, config)}
 
 ${this.generateLogGroupSection(functionName, config)}
 
-rm lambda.zip
+rm ${functionName}.zip
 
 echo "✅ Lambda function ${functionName} deployed successfully!"
 `;
@@ -60,38 +60,13 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
   }
 
 
-  private generateZipSection(config: LambdaConfig): string {
-    let section = '# Create deployment package\n';
-    const functionsDir = config.functionsDirectory || 'functions';
-
-    // Change to functions directory
-    section += `cd ${functionsDir}\n`;
-
-    if (config.files && config.files.length > 0) {
-      // Custom file list
-      section += 'echo "Creating deployment package..."\n';
-      section += 'rm -f lambda.zip\n';
-
-      for (const file of config.files) {
-        if (file.includes('*')) {
-          // Glob pattern - use find for bash compatibility
-          section += `find . -path "${file}" -type f | zip -@ lambda.zip\n`;
-        } else {
-          section += `zip -r lambda.zip "${file}"\n`;
-        }
-      }
-    } else {
-      // Default: zip current directory with excludes from config
-      section += 'echo "Creating deployment package from functions directory..."\n';
-      const excludes = config.zip_excludes || ['*.git*', 'node_modules/*', '*.zip', 'dist/*', '.DS_Store'];
-      const excludeArgs = excludes.map(exclude => `"${exclude}"`).join(' ');
-      section += `zip -r lambda.zip . -x ${excludeArgs}\n`;
-    }
-
-    // Move ZIP back to project root
-    section += `mv lambda.zip ../\n`;
-    section += `cd ..\n`;
-
+  private generateZipSection(functionName: string, config: LambdaConfig): string {
+    const zipFileName = `${functionName}.zip`;
+    let section = '# Check for deployment package\n';
+    section += `if [ ! -f "${zipFileName}" ]; then\n`;
+    section += `  echo "Error: ${zipFileName} not found. Please run 'makezip' command first."\n`;
+    section += '  exit 1\n';
+    section += 'fi\n';
     section += '\n';
     return section;
   }

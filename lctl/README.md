@@ -18,9 +18,8 @@ project/
 │   └── other-function.yaml
 ├── functions/              # Lambda関数コード（必須）
 │   ├── my-function.py
-│   ├── requirements.txt
 │   └── utils.py
-└── other-files/
+└── my-function.zip         # 生成されるデプロイパッケージ
 ```
 
 ### 2. YAML設定ファイルを作成
@@ -35,7 +34,12 @@ role: arn:aws:iam::123456789012:role/lambda-execution-role
 # ファイル設定
 files:
   - my_function.py
-  - requirements.txt
+  - utils.py
+
+# Python依存関係（自動インストール）
+requirements:
+  - requests>=2.28.0
+  - boto3>=1.26.0
 
 # 環境変数
 environment:
@@ -49,13 +53,39 @@ permissions:
 
 ### 3. デプロイ実行
 ```bash
-# AWS認証情報を設定してデプロイ
+# 一括デプロイ（推奨）
 pnpx @infodb/lctl deploy my-function
+
+# または個別実行
+pnpx @infodb/lctl makezip my-function    # ZIPパッケージ作成
+pnpx @infodb/lctl export my-function     # スクリプト生成
+bash deploy-my-function.sh               # デプロイ実行
 ```
 
 ## コマンド一覧
 
-### 1. deploy - Lambda関数のデプロイ（作成・更新）
+### 1. makezip - デプロイパッケージの作成
+```bash
+pnpx @infodb/lctl makezip <config-name> [オプション]
+```
+
+**必須引数:**
+- `config-name`: 設定ファイル名（.yaml拡張子は不要）
+
+**オプション:**
+- `--verbose`: 詳細なログを出力
+
+**機能:**
+- `requirements`セクションがあれば自動的にpip installを実行
+- 既存のvendorフォルダを削除
+- 適切なディレクトリ構造で`<function-name>.zip`を作成
+
+**例:**
+```bash
+pnpx @infodb/lctl makezip my-function --verbose
+```
+
+### 2. deploy - Lambda関数の完全デプロイ（推奨）
 ```bash
 pnpx @infodb/lctl deploy <config-name> [オプション]
 ```
@@ -66,6 +96,11 @@ pnpx @infodb/lctl deploy <config-name> [オプション]
 **オプション:**
 - `--verbose`: 詳細なログを出力
 
+**動作:**
+1. `makezip`コマンドを自動実行（ZIPパッケージ作成）
+2. `export`コマンドを自動実行（デプロイスクリプト生成）
+3. 生成されたスクリプトを実行（AWS Lambda関数デプロイ）
+
 **例:**
 ```bash
 # 基本的な使用方法
@@ -73,12 +108,34 @@ pnpx @infodb/lctl deploy my-function
 
 # 詳細ログ付き
 pnpx @infodb/lctl deploy my-function --verbose
-
-# 環境変数を使用
-ENV_NAME=prod DB_HOST=prod.example.com pnpx @infodb/lctl deploy my-function
 ```
 
-### 2. delete - Lambda関数の削除
+### 3. export - デプロイスクリプトの生成
+```bash
+pnpx @infodb/lctl export <config-name> [オプション]
+```
+
+**必須引数:**
+- `config-name`: 設定ファイル名（.yaml拡張子は不要）
+
+**オプション:**
+- `--output <file>`: 出力ファイルパス（デフォルト: deploy-{config-name}.sh）
+- `--verbose`: 詳細なログを出力
+
+**機能:**
+- `<function-name>.zip`の存在チェックを含むスクリプトを生成
+- CI/CD環境で個別実行するのに適している
+
+**例:**
+```bash
+# スクリプト生成
+pnpx @infodb/lctl export my-function
+
+# カスタム出力ファイル
+pnpx @infodb/lctl export my-function --output custom-deploy.sh
+```
+
+### 4. delete - Lambda関数の削除
 ```bash
 pnpx @infodb/lctl delete <config-name> [オプション]
 ```
@@ -94,7 +151,7 @@ pnpx @infodb/lctl delete <config-name> [オプション]
 pnpx @infodb/lctl delete my-function
 ```
 
-### 3. info - Lambda関数の詳細情報表示
+### 5. info - Lambda関数の詳細情報表示
 ```bash
 pnpx @infodb/lctl info <config-name> [オプション]
 ```
@@ -110,7 +167,25 @@ pnpx @infodb/lctl info <config-name> [オプション]
 pnpx @infodb/lctl info my-function
 ```
 
-### 4. export - デプロイメントスクリプトの出力
+## 使用シナリオ
+
+### ローカル開発
+```bash
+# 一括デプロイ（最も簡単）
+pnpx @infodb/lctl deploy my-function
+```
+
+### CI/CD環境
+```bash
+# 段階的デプロイ（制御しやすい）
+pnpx @infodb/lctl makezip my-function    # ZIPパッケージ作成
+pnpx @infodb/lctl export my-function     # スクリプト生成
+bash deploy-my-function.sh               # デプロイ実行
+```
+
+### レガシーコマンド（v0.8.0以前との互換性）
+
+#### export - デプロイメントスクリプトの出力
 ```bash
 pnpx @infodb/lctl export <config-name> [オプション]
 ```
@@ -157,9 +232,14 @@ description: "マイ Lambda 関数"
 # デプロイするファイル（functionsディレクトリ内の相対パス）
 files:
   - my_function.py
-  - requirements.txt
   - utils.py
   - "lib/**/*.py"  # glob パターンも使用可能
+
+# Python依存関係（自動インストール）
+requirements:
+  - requests>=2.28.0
+  - boto3>=1.26.0
+  - pandas>=1.5.0
 
 # 環境変数
 environment:
