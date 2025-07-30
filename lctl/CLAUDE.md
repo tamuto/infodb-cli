@@ -214,6 +214,34 @@ ENV_NAME=dev DB_HOST=localhost pnpx @infodb/lctl deploy my-function
 ENV_NAME=prod DB_HOST=prod.db.example.com pnpx @infodb/lctl deploy my-function
 ```
 
+## 開発・リリース手順
+
+### バージョン更新手順
+新しいバージョンをリリースする際は、以下の2つのファイルでバージョン番号を更新する必要があります：
+
+1. **package.json** - パッケージのバージョン
+```bash
+# package.jsonのversionフィールドを更新
+"version": "0.8.0"
+```
+
+2. **src/index.ts** - CLIのversionメソッド
+```bash
+# src/index.tsの.version()メソッドを更新
+.version('0.8.0')
+```
+
+#### バージョン更新の実行例
+```bash
+# 1. package.jsonとsrc/index.tsの両方でバージョンを更新
+# 2. 変更をコミット
+git add package.json src/index.ts
+git commit -m "Bump version to 0.8.0"
+
+# 3. プッシュ
+git push
+```
+
 ## トラブルシューティング
 
 ### よくある問題
