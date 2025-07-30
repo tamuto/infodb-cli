@@ -23,7 +23,7 @@ export async function exportCommand(functionName: string, options: ExportOptions
     // Generate script
     const scriptGenerator = new ScriptGenerator(logger);
     const actualFunctionName = config.function_name || functionName;
-    const script = scriptGenerator.generateDeployScript(actualFunctionName, config);
+    const script = scriptGenerator.generateDeployScript(actualFunctionName, config, functionName);
 
     // Save script
     const outputPath = options.output || `deploy-${functionName}.sh`;

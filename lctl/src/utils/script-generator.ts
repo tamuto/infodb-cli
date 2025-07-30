@@ -6,7 +6,7 @@ import { Logger } from './logger';
 export class ScriptGenerator {
   constructor(private logger: Logger) {}
 
-  generateDeployScript(functionName: string, config: LambdaConfig): string {
+  generateDeployScript(functionName: string, config: LambdaConfig, baseFileName?: string): string {
     const script = `#!/bin/bash
 set -eu
 
@@ -14,10 +14,10 @@ set -eu
 # Function: ${functionName}
 # Generated at: ${new Date().toISOString()}
 
-${this.generateZipSection(functionName, config)}${this.generateEnvironmentVariablesSection(config)}${this.generateLayersSection(config)}# Lambda関数の存在を確認
+${this.generateZipSection(baseFileName || functionName, config)}${this.generateEnvironmentVariablesSection(config)}${this.generateLayersSection(config)}# Lambda関数の存在を確認
 if aws lambda get-function --function-name ${functionName} &> /dev/null; then
     echo "Updating existing Lambda function: ${functionName}"
-    aws lambda update-function-code --function-name ${functionName} --zip-file fileb://${functionName}.zip | jq .
+    aws lambda update-function-code --function-name ${functionName} --zip-file fileb://${baseFileName || functionName}.zip | jq .
     
     # 関数がActiveになるまで待機
     aws lambda wait function-active --function-name ${functionName}
@@ -35,7 +35,7 @@ if aws lambda get-function --function-name ${functionName} &> /dev/null; then
 else
     echo "Creating new Lambda function: ${functionName}"
     aws lambda create-function --function-name ${functionName} \\
-        --zip-file fileb://${functionName}.zip \\
+        --zip-file fileb://${baseFileName || functionName}.zip \\
         --handler ${config.handler} \\
         --runtime ${config.runtime} \\
         --architectures ${config.architecture || 'x86_64'} \\
@@ -51,7 +51,7 @@ ${this.generatePermissionsSection(functionName, config)}
 
 ${this.generateLogGroupSection(functionName, config)}
 
-rm ${functionName}.zip
+rm ${baseFileName || functionName}.zip
 
 echo "✅ Lambda function ${functionName} deployed successfully!"
 `;
@@ -60,8 +60,8 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
   }
 
 
-  private generateZipSection(functionName: string, config: LambdaConfig): string {
-    const zipFileName = `${functionName}.zip`;
+  private generateZipSection(zipBaseName: string, config: LambdaConfig): string {
+    const zipFileName = `${zipBaseName}.zip`;
     let section = '# Check for deployment package\n';
     section += `if [ ! -f "${zipFileName}" ]; then\n`;
     section += `  echo "Error: ${zipFileName} not found. Please run 'makezip' command first."\n`;

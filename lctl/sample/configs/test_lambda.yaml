@@ -1,6 +1,6 @@
 # Example Lambda function configuration
 # function_name: ${ENV_NAME}_test_lambda  # Optional: custom function name with environment variable
-function_name: test_lambda  # If not specified, uses the config file name
+function_name: my_test_function  # Different from config file name to demonstrate ZIP file naming
 runtime: python3.12
 handler: test_lambda.handler
 role: arn:aws:iam::123456789012:role/lambda-execution-role
