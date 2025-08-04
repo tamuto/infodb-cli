@@ -6,7 +6,7 @@ import { Logger } from './logger';
 export class ScriptGenerator {
   constructor(private logger: Logger) {}
 
-  generateDeployScript(functionName: string, config: LambdaConfig, baseFileName?: string): string {
+  generateDeployScript(functionName: string, config: LambdaConfig, baseFileName?: string, cleanupZip: boolean = false): string {
     const script = `#!/bin/bash
 set -eu
 
@@ -51,9 +51,7 @@ ${this.generatePermissionsSection(functionName, config)}
 
 ${this.generateLogGroupSection(functionName, config)}
 
-rm ${baseFileName || functionName}.zip
-
-echo "✅ Lambda function ${functionName} deployed successfully!"
+${cleanupZip ? `rm ${baseFileName || functionName}.zip\n` : ''}echo "✅ Lambda function ${functionName} deployed successfully!"
 `;
 
     return script;

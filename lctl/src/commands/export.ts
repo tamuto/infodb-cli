@@ -6,6 +6,7 @@ import { Logger } from '../utils/logger';
 export interface ExportOptions {
   output?: string;
   verbose?: boolean;
+  cleanupZip?: boolean;
 }
 
 export async function exportCommand(functionName: string, options: ExportOptions): Promise<void> {
@@ -23,7 +24,7 @@ export async function exportCommand(functionName: string, options: ExportOptions
     // Generate script
     const scriptGenerator = new ScriptGenerator(logger);
     const actualFunctionName = config.function_name || functionName;
-    const script = scriptGenerator.generateDeployScript(actualFunctionName, config, functionName);
+    const script = scriptGenerator.generateDeployScript(actualFunctionName, config, functionName, options.cleanupZip || false);
 
     // Save script
     const outputPath = options.output || `deploy-${functionName}.sh`;

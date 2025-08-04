@@ -13,7 +13,7 @@ const program = new Command();
 program
   .name('lctl')
   .description('AWS Lambda Control Tool - Simple CLI for managing Lambda functions')
-  .version('0.9.2');
+  .version('0.9.3');
 
 // Deploy command
 program

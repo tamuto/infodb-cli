@@ -24,7 +24,8 @@ export async function deployCommand(functionName: string, options: DeployOptions
     const scriptFileName = `deploy-${functionName}.sh`;
     await exportCommand(functionName, { 
       output: scriptFileName, 
-      verbose: options.verbose 
+      verbose: options.verbose,
+      cleanupZip: true
     });
 
     // Step 3: Execute the deployment script
