@@ -149,9 +149,9 @@ async function createDeploymentZip(functionsDir: string, config: any, zipFileNam
 function runCommand(command: string, args: string[], logger: Logger): Promise<void> {
   return new Promise((resolve, reject) => {
     logger.verbose(`Running: ${command} ${args.join(' ')}`);
-    
+
     const child = spawn(command, args, {
-      stdio: 'pipe'
+      stdio: 'inherit'
     });
 
     child.on('close', (code) => {
