@@ -1,12 +1,13 @@
 import { promises as fs } from 'fs';
 import path from 'path';
+import Handlebars from 'handlebars';
 import { logger } from '../utils/logger.js';
 import * as packageParser from '../utils/package-parser.js';
 import * as pyprojectParser from '../utils/pyproject-parser.js';
 
 export interface ScanOptions {
   includeDev?: boolean;
-  format?: 'text' | 'json' | 'csv';
+  format?: 'text' | 'json' | 'csv' | 'markdown';
   output?: string;
   npmOnly?: boolean;
   pythonOnly?: boolean;
@@ -158,6 +159,9 @@ async function outputResults(results: ScanResult[], options: ScanOptions) {
     case 'csv':
       output = formatCsv(results);
       break;
+    case 'markdown':
+      output = await formatMarkdown(results);
+      break;
     case 'text':
     default:
       output = formatText(results);
@@ -247,6 +251,39 @@ function formatCsv(results: ScanResult[]): string {
   }
 
   return csv;
+}
+
+async function formatMarkdown(results: ScanResult[]): Promise<string> {
+  // Register Handlebars helper for generating anchor links
+  Handlebars.registerHelper('anchor', (name: string, version: string) => {
+    // Create a URL-safe anchor from package name and version
+    return `${name}-${version}`.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+  });
+
+  // Load template
+  const templatePath = path.join(__dirname, '../templates/licenses.md.hbs');
+  const templateSource = await fs.readFile(templatePath, 'utf-8');
+  const template = Handlebars.compile(templateSource);
+
+  // Separate npm and Python packages
+  const npmPackages: any[] = [];
+  const pythonPackages: any[] = [];
+
+  for (const result of results) {
+    if (result.type === 'npm') {
+      npmPackages.push(...result.packages);
+    } else if (result.type === 'python') {
+      pythonPackages.push(...result.packages);
+    }
+  }
+
+  // Render template with data
+  const output = template({
+    npmPackages,
+    pythonPackages,
+  });
+
+  return output;
 }
 
 async function fileExists(filePath: string): Promise<boolean> {
