@@ -19,6 +19,7 @@ export interface ScanResult {
     version: string;
     license?: string;
     copyright?: string;
+    licenseText?: string;
     author?: string;
     repository?: string;
     homepage?: string;
@@ -77,15 +78,15 @@ async function scanNpmDependencies(
   projectPath: string,
   includeDev: boolean,
 ): Promise<ScanResult | null> {
-  const packageJsonPath = path.join(projectPath, 'package.json');
-  const deps = await packageParser.getDependencies(packageJsonPath, includeDev);
+  // Use getAllInstalledPackages to get all dependencies recursively
+  const deps = await packageParser.getAllInstalledPackages(projectPath);
 
   if (deps.size === 0) {
-    logger.warn('No dependencies found in package.json');
+    logger.warn('No npm dependencies found');
     return null;
   }
 
-  logger.info(`Found ${deps.size} npm dependencies`);
+  logger.info(`Found ${deps.size} npm dependencies (including nested)`);
 
   const packages: ScanResult['packages'] = [];
 
@@ -113,15 +114,15 @@ async function scanPythonDependencies(
   projectPath: string,
   includeDev: boolean,
 ): Promise<ScanResult | null> {
-  const pyprojectPath = path.join(projectPath, 'pyproject.toml');
-  const deps = await pyprojectParser.getDependencies(pyprojectPath, includeDev);
+  // Use getAllInstalledPackages to get all dependencies recursively
+  const deps = await pyprojectParser.getAllInstalledPackages(projectPath);
 
   if (deps.size === 0) {
-    logger.warn('No dependencies found in pyproject.toml');
+    logger.warn('No Python dependencies found');
     return null;
   }
 
-  logger.info(`Found ${deps.size} Python dependencies`);
+  logger.info(`Found ${deps.size} Python dependencies (including nested)`);
 
   const packages: ScanResult['packages'] = [];
 
@@ -203,6 +204,16 @@ function formatText(results: ScanResult[]): string {
         }
       }
 
+      if (pkg.licenseText) {
+        output += `License Text:\n`;
+        output += `${'~'.repeat(80)}\n`;
+        output += pkg.licenseText;
+        if (!pkg.licenseText.endsWith('\n')) {
+          output += '\n';
+        }
+        output += `${'~'.repeat(80)}\n`;
+      }
+
       output += `${'-'.repeat(80)}\n`;
     }
   }
@@ -215,7 +226,7 @@ function formatJson(results: ScanResult[]): string {
 }
 
 function formatCsv(results: ScanResult[]): string {
-  let csv = 'Type,Name,Version,License,Author,Homepage,Repository,Copyright\n';
+  let csv = 'Type,Name,Version,License,Author,Homepage,Repository,Copyright,LicenseText\n';
 
   for (const result of results) {
     for (const pkg of result.packages) {
@@ -228,6 +239,7 @@ function formatCsv(results: ScanResult[]): string {
         pkg.homepage || '',
         pkg.repository || '',
         (pkg.copyright || '').replace(/\n/g, ' '),
+        (pkg.licenseText || '').replace(/\n/g, ' '),
       ];
 
       csv += row.map((field) => `"${field}"`).join(',') + '\n';

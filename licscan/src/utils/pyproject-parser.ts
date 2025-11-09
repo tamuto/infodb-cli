@@ -15,6 +15,7 @@ export interface PythonPackageInfo {
   version: string;
   license?: string;
   copyright?: string;
+  licenseText?: string;
   author?: string;
   homepage?: string;
 }
@@ -25,6 +26,9 @@ interface EnvironmentInfo {
   type: PythonEnvironment;
   projectRoot?: string;
 }
+
+// Cache for environment detection
+const envCache = new Map<string, EnvironmentInfo>();
 
 export async function parsePyProjectToml(tomlPath: string): Promise<PyProjectInfo | null> {
   try {
@@ -63,24 +67,37 @@ export async function parsePyProjectToml(tomlPath: string): Promise<PyProjectInf
  * Detect the Python environment type for the given project
  */
 async function detectPythonEnvironment(projectRoot: string): Promise<EnvironmentInfo> {
+  // Check cache first
+  if (envCache.has(projectRoot)) {
+    return envCache.get(projectRoot)!;
+  }
+
+  let envInfo: EnvironmentInfo;
+
   // Check for uv.lock (uv project)
   const uvLockPath = path.join(projectRoot, 'uv.lock');
   if (await fileExists(uvLockPath)) {
     logger.info('Detected uv environment (uv.lock found)');
-    return { type: 'uv', projectRoot };
+    envInfo = { type: 'uv', projectRoot };
+    envCache.set(projectRoot, envInfo);
+    return envInfo;
   }
 
   // Check for poetry.lock (poetry project)
   const poetryLockPath = path.join(projectRoot, 'poetry.lock');
   if (await fileExists(poetryLockPath)) {
     logger.info('Detected poetry environment (poetry.lock found)');
-    return { type: 'poetry', projectRoot };
+    envInfo = { type: 'poetry', projectRoot };
+    envCache.set(projectRoot, envInfo);
+    return envInfo;
   }
 
   // Check for VIRTUAL_ENV environment variable (venv)
   if (process.env.VIRTUAL_ENV) {
     logger.info(`Detected venv environment (VIRTUAL_ENV=${process.env.VIRTUAL_ENV})`);
-    return { type: 'venv', projectRoot };
+    envInfo = { type: 'venv', projectRoot };
+    envCache.set(projectRoot, envInfo);
+    return envInfo;
   }
 
   // Check for common venv directories
@@ -91,13 +108,17 @@ async function detectPythonEnvironment(projectRoot: string): Promise<Environment
     const venvScriptsPath = path.join(venvPath, 'Scripts', 'python.exe'); // Windows
     if ((await fileExists(venvBinPath)) || (await fileExists(venvScriptsPath))) {
       logger.info(`Detected venv environment (${dir} directory found)`);
-      return { type: 'venv', projectRoot };
+      envInfo = { type: 'venv', projectRoot };
+      envCache.set(projectRoot, envInfo);
+      return envInfo;
     }
   }
 
   // Default to system Python
   logger.info('Using system Python (no virtual environment detected)');
-  return { type: 'system', projectRoot };
+  envInfo = { type: 'system', projectRoot };
+  envCache.set(projectRoot, envInfo);
+  return envInfo;
 }
 
 /**
@@ -171,6 +192,41 @@ export async function getDependencies(
   }
 
   return deps;
+}
+
+/**
+ * Get all installed Python packages (recursive dependencies included)
+ */
+export async function getAllInstalledPackages(
+  projectRoot: string,
+): Promise<Map<string, string>> {
+  try {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+
+    // Detect the Python environment
+    const env = await detectPythonEnvironment(projectRoot);
+    const cmdPrefix = buildCommandPrefix(env);
+
+    // Use pip list to get all installed packages
+    const pipCommand = cmdPrefix
+      ? `${cmdPrefix} pip list --format=json`
+      : `pip list --format=json`;
+
+    const { stdout } = await execAsync(pipCommand, { cwd: projectRoot });
+    const packages = JSON.parse(stdout) as Array<{ name: string; version: string }>;
+
+    const deps = new Map<string, string>();
+    for (const pkg of packages) {
+      deps.set(pkg.name, pkg.version);
+    }
+
+    return deps;
+  } catch (error) {
+    logger.warn(`Could not get installed Python packages: ${error}`);
+    return new Map();
+  }
 }
 
 export async function getPythonPackageInfo(
@@ -292,9 +348,14 @@ except Exception as e:
         homepage: result.homepage,
       };
 
-      // Try to get copyright from package metadata
+      // Try to get copyright and license text from package metadata
       if (result.location && result.name && result.version) {
         info.copyright = await extractPythonCopyright(
+          result.name,
+          result.version,
+          result.location,
+        );
+        info.licenseText = await getPythonLicenseText(
           result.name,
           result.version,
           result.location,
@@ -314,6 +375,55 @@ except Exception as e:
     logger.warn(`Could not read Python package info for ${packageName}: ${error}`);
     return null;
   }
+}
+
+async function getPythonLicenseText(
+  packageRealName: string,
+  version: string,
+  location: string,
+): Promise<string | undefined> {
+  try {
+    const lowerName = packageRealName.toLowerCase();
+    const nameWithHyphens = lowerName.replace(/_/g, '-');
+    const nameWithUnderscores = lowerName.replace(/-/g, '_');
+
+    // Try to find LICENSE file in common locations
+    const possiblePaths = [
+      // .dist-info directory with licenses/ subdirectory (newer Python packaging standard)
+      path.join(location, `${nameWithHyphens}-${version}.dist-info`, 'licenses', 'LICENSE'),
+      path.join(location, `${nameWithHyphens}-${version}.dist-info`, 'licenses', 'LICENSE.txt'),
+      path.join(location, `${nameWithUnderscores}-${version}.dist-info`, 'licenses', 'LICENSE'),
+      path.join(location, `${nameWithUnderscores}-${version}.dist-info`, 'licenses', 'LICENSE.txt'),
+      // .dist-info directory (most common for pip-installed packages)
+      path.join(location, `${nameWithHyphens}-${version}.dist-info`, 'LICENSE'),
+      path.join(location, `${nameWithHyphens}-${version}.dist-info`, 'LICENSE.txt'),
+      path.join(location, `${nameWithHyphens}-${version}.dist-info`, 'COPYING'),
+      path.join(location, `${nameWithUnderscores}-${version}.dist-info`, 'LICENSE'),
+      path.join(location, `${nameWithUnderscores}-${version}.dist-info`, 'LICENSE.txt'),
+      // Try with original case as well
+      path.join(location, `${packageRealName}-${version}.dist-info`, 'licenses', 'LICENSE'),
+      path.join(location, `${packageRealName}-${version}.dist-info`, 'LICENSE'),
+      // Package directory itself
+      path.join(location, nameWithUnderscores, 'LICENSE'),
+      path.join(location, nameWithUnderscores, 'LICENSE.txt'),
+      path.join(location, nameWithUnderscores, 'LICENSE.md'),
+      path.join(location, nameWithUnderscores, 'COPYING'),
+    ];
+
+    for (const licensePath of possiblePaths) {
+      try {
+        const content = await fs.readFile(licensePath, 'utf-8');
+        return content;
+      } catch {
+        // File doesn't exist, try next path
+        continue;
+      }
+    }
+  } catch {
+    // Ignore errors
+  }
+
+  return undefined;
 }
 
 async function extractPythonCopyright(
