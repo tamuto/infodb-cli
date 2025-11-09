@@ -6,3 +6,4 @@ dist/
 
 # Test/check folder
 check/.venv/
+check/node_modules/

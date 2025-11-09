@@ -61,6 +61,110 @@ export async function getDependencies(
   return deps;
 }
 
+/**
+ * Get all installed npm packages (recursive dependencies included)
+ */
+export async function getAllInstalledPackages(
+  projectRoot: string,
+): Promise<Map<string, string>> {
+  try {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+
+    // Use npm list to get all installed packages
+    const { stdout } = await execAsync('npm list --json --all --depth=999', {
+      cwd: projectRoot,
+      maxBuffer: 1024 * 1024 * 10, // 10MB buffer for large dependency trees
+    });
+
+    const result = JSON.parse(stdout);
+    const deps = new Map<string, string>();
+
+    // Recursively extract dependencies from npm list output
+    function extractDeps(obj: any) {
+      if (obj.dependencies) {
+        for (const [name, info] of Object.entries(obj.dependencies)) {
+          const depInfo = info as any;
+          if (depInfo.version) {
+            deps.set(name, depInfo.version);
+          }
+          // Recurse into nested dependencies
+          if (depInfo.dependencies) {
+            extractDeps(depInfo);
+          }
+        }
+      }
+    }
+
+    extractDeps(result);
+    return deps;
+  } catch (error) {
+    logger.warn(`Could not get installed npm packages: ${error}`);
+    // Fallback: try to read from node_modules
+    return await getAllPackagesFromNodeModules(projectRoot);
+  }
+}
+
+/**
+ * Fallback: Scan node_modules directory for packages
+ */
+async function getAllPackagesFromNodeModules(
+  projectRoot: string,
+): Promise<Map<string, string>> {
+  const deps = new Map<string, string>();
+  const nodeModulesPath = path.join(projectRoot, 'node_modules');
+
+  try {
+    const entries = await fs.readdir(nodeModulesPath, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (entry.isDirectory() && !entry.name.startsWith('.')) {
+        // Handle scoped packages (@org/package)
+        if (entry.name.startsWith('@')) {
+          const scopedPath = path.join(nodeModulesPath, entry.name);
+          const scopedEntries = await fs.readdir(scopedPath, { withFileTypes: true });
+          for (const scopedEntry of scopedEntries) {
+            if (scopedEntry.isDirectory()) {
+              const packageName = `${entry.name}/${scopedEntry.name}`;
+              const version = await getPackageVersion(
+                path.join(scopedPath, scopedEntry.name),
+              );
+              if (version) {
+                deps.set(packageName, version);
+              }
+            }
+          }
+        } else {
+          // Regular package
+          const version = await getPackageVersion(
+            path.join(nodeModulesPath, entry.name),
+          );
+          if (version) {
+            deps.set(entry.name, version);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    logger.warn(`Could not scan node_modules: ${error}`);
+  }
+
+  return deps;
+}
+
+/**
+ * Get version from package.json in a package directory
+ */
+async function getPackageVersion(packageDir: string): Promise<string | null> {
+  try {
+    const pkg = await parsePackageJson(path.join(packageDir, 'package.json'));
+    return pkg?.version || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getPackageInfo(
   packageName: string,
   projectRoot: string,

@@ -26,6 +26,9 @@ interface EnvironmentInfo {
   projectRoot?: string;
 }
 
+// Cache for environment detection
+const envCache = new Map<string, EnvironmentInfo>();
+
 export async function parsePyProjectToml(tomlPath: string): Promise<PyProjectInfo | null> {
   try {
     const content = await fs.readFile(tomlPath, 'utf-8');
@@ -63,24 +66,37 @@ export async function parsePyProjectToml(tomlPath: string): Promise<PyProjectInf
  * Detect the Python environment type for the given project
  */
 async function detectPythonEnvironment(projectRoot: string): Promise<EnvironmentInfo> {
+  // Check cache first
+  if (envCache.has(projectRoot)) {
+    return envCache.get(projectRoot)!;
+  }
+
+  let envInfo: EnvironmentInfo;
+
   // Check for uv.lock (uv project)
   const uvLockPath = path.join(projectRoot, 'uv.lock');
   if (await fileExists(uvLockPath)) {
     logger.info('Detected uv environment (uv.lock found)');
-    return { type: 'uv', projectRoot };
+    envInfo = { type: 'uv', projectRoot };
+    envCache.set(projectRoot, envInfo);
+    return envInfo;
   }
 
   // Check for poetry.lock (poetry project)
   const poetryLockPath = path.join(projectRoot, 'poetry.lock');
   if (await fileExists(poetryLockPath)) {
     logger.info('Detected poetry environment (poetry.lock found)');
-    return { type: 'poetry', projectRoot };
+    envInfo = { type: 'poetry', projectRoot };
+    envCache.set(projectRoot, envInfo);
+    return envInfo;
   }
 
   // Check for VIRTUAL_ENV environment variable (venv)
   if (process.env.VIRTUAL_ENV) {
     logger.info(`Detected venv environment (VIRTUAL_ENV=${process.env.VIRTUAL_ENV})`);
-    return { type: 'venv', projectRoot };
+    envInfo = { type: 'venv', projectRoot };
+    envCache.set(projectRoot, envInfo);
+    return envInfo;
   }
 
   // Check for common venv directories
@@ -91,13 +107,17 @@ async function detectPythonEnvironment(projectRoot: string): Promise<Environment
     const venvScriptsPath = path.join(venvPath, 'Scripts', 'python.exe'); // Windows
     if ((await fileExists(venvBinPath)) || (await fileExists(venvScriptsPath))) {
       logger.info(`Detected venv environment (${dir} directory found)`);
-      return { type: 'venv', projectRoot };
+      envInfo = { type: 'venv', projectRoot };
+      envCache.set(projectRoot, envInfo);
+      return envInfo;
     }
   }
 
   // Default to system Python
   logger.info('Using system Python (no virtual environment detected)');
-  return { type: 'system', projectRoot };
+  envInfo = { type: 'system', projectRoot };
+  envCache.set(projectRoot, envInfo);
+  return envInfo;
 }
 
 /**
@@ -171,6 +191,41 @@ export async function getDependencies(
   }
 
   return deps;
+}
+
+/**
+ * Get all installed Python packages (recursive dependencies included)
+ */
+export async function getAllInstalledPackages(
+  projectRoot: string,
+): Promise<Map<string, string>> {
+  try {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+
+    // Detect the Python environment
+    const env = await detectPythonEnvironment(projectRoot);
+    const cmdPrefix = buildCommandPrefix(env);
+
+    // Use pip list to get all installed packages
+    const pipCommand = cmdPrefix
+      ? `${cmdPrefix} pip list --format=json`
+      : `pip list --format=json`;
+
+    const { stdout } = await execAsync(pipCommand, { cwd: projectRoot });
+    const packages = JSON.parse(stdout) as Array<{ name: string; version: string }>;
+
+    const deps = new Map<string, string>();
+    for (const pkg of packages) {
+      deps.set(pkg.name, pkg.version);
+    }
+
+    return deps;
+  } catch (error) {
+    logger.warn(`Could not get installed Python packages: ${error}`);
+    return new Map();
+  }
 }
 
 export async function getPythonPackageInfo(

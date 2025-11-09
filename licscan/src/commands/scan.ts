@@ -77,15 +77,15 @@ async function scanNpmDependencies(
   projectPath: string,
   includeDev: boolean,
 ): Promise<ScanResult | null> {
-  const packageJsonPath = path.join(projectPath, 'package.json');
-  const deps = await packageParser.getDependencies(packageJsonPath, includeDev);
+  // Use getAllInstalledPackages to get all dependencies recursively
+  const deps = await packageParser.getAllInstalledPackages(projectPath);
 
   if (deps.size === 0) {
-    logger.warn('No dependencies found in package.json');
+    logger.warn('No npm dependencies found');
     return null;
   }
 
-  logger.info(`Found ${deps.size} npm dependencies`);
+  logger.info(`Found ${deps.size} npm dependencies (including nested)`);
 
   const packages: ScanResult['packages'] = [];
 
@@ -113,15 +113,15 @@ async function scanPythonDependencies(
   projectPath: string,
   includeDev: boolean,
 ): Promise<ScanResult | null> {
-  const pyprojectPath = path.join(projectPath, 'pyproject.toml');
-  const deps = await pyprojectParser.getDependencies(pyprojectPath, includeDev);
+  // Use getAllInstalledPackages to get all dependencies recursively
+  const deps = await pyprojectParser.getAllInstalledPackages(projectPath);
 
   if (deps.size === 0) {
-    logger.warn('No dependencies found in pyproject.toml');
+    logger.warn('No Python dependencies found');
     return null;
   }
 
-  logger.info(`Found ${deps.size} Python dependencies`);
+  logger.info(`Found ${deps.size} Python dependencies (including nested)`);
 
   const packages: ScanResult['packages'] = [];
 
