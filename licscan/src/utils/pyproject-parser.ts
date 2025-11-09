@@ -316,6 +316,35 @@ async function extractPythonCopyright(
   version: string,
   location: string,
 ): Promise<string | undefined> {
+  // Patterns that indicate the actual license text has started (not copyright header)
+  const licenseTextPatterns = [
+    /permission is hereby granted/i,
+    /the software is provided/i,
+    /redistribution and use/i,
+    /licensed under/i,
+    /apache license/i,
+    /gnu (general public|lesser general|affero general) public license/i,
+    /this (software|program|library) is free software/i,
+    /terms and conditions/i,
+  ];
+
+  // More strict copyright pattern:
+  // - Must contain "copyright", "©", or "(c)" (case-insensitive)
+  // - Should typically have a year (4-digit number)
+  const isCopyrightLine = (line: string): boolean => {
+    const lowerLine = line.toLowerCase();
+    const hasKeyword = /copyright|©|\(c\)/i.test(line);
+    const hasYear = /\b(19|20)\d{2}\b/.test(line);
+    
+    // A valid copyright line should have both keyword and year
+    // OR just the keyword if it's at the very beginning of the file
+    return hasKeyword && (hasYear || lowerLine.startsWith('copyright'));
+  };
+
+  const isLicenseTextStart = (line: string): boolean => {
+    return licenseTextPatterns.some(pattern => pattern.test(line));
+  };
+
   try {
     const lowerName = packageRealName.toLowerCase();
     const nameWithHyphens = lowerName.replace(/_/g, '-');
@@ -351,30 +380,36 @@ async function extractPythonCopyright(
         const content = await fs.readFile(licensePath, 'utf-8');
         const lines = content.split('\n');
 
-        // Smart filtering: extract consecutive copyright lines from the beginning
         const copyrightLines: string[] = [];
-        let foundFirstCopyright = false;
-        let consecutiveNonCopyrightLines = 0;
-        const maxGap = 2; // Allow up to 2 non-copyright lines before stopping
+        const maxLinesToCheck = 50; // Only check first 50 lines
 
-        for (const line of lines) {
+        for (let i = 0; i < Math.min(lines.length, maxLinesToCheck); i++) {
+          const line = lines[i];
           const trimmedLine = line.trim();
-          const isCopyrightLine = /copyright/i.test(line);
 
-          if (isCopyrightLine) {
-            foundFirstCopyright = true;
-            consecutiveNonCopyrightLines = 0;
+          // Stop if we hit the actual license text
+          if (isLicenseTextStart(trimmedLine)) {
+            break;
+          }
+
+          // Add copyright lines
+          if (isCopyrightLine(trimmedLine)) {
             copyrightLines.push(trimmedLine);
-          } else if (foundFirstCopyright) {
-            // Check if this is a meaningful line (not just empty or whitespace)
-            if (trimmedLine.length > 0) {
-              consecutiveNonCopyrightLines++;
-              if (consecutiveNonCopyrightLines >= maxGap) {
-                // Too many non-copyright lines, stop here
-                break;
-              }
+          } else if (copyrightLines.length > 0 && trimmedLine.length === 0) {
+            // Allow empty lines within copyright block
+            continue;
+          } else if (copyrightLines.length > 0 && trimmedLine.length > 0) {
+            // If we've found copyright lines and hit a non-empty, non-copyright line
+            // that's not the license text, check if it might be a continuation
+            // (e.g., author name on next line)
+            const prevLine = lines[i - 1]?.trim() || '';
+            if (isCopyrightLine(prevLine) && trimmedLine.length < 100) {
+              // Likely a continuation (author name, etc.)
+              copyrightLines.push(trimmedLine);
+            } else {
+              // End of copyright block
+              break;
             }
-            // Empty lines don't count towards the gap, but we don't add them
           }
         }
 
