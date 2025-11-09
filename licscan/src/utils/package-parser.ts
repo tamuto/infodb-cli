@@ -63,6 +63,34 @@ export async function getDependencies(
 }
 
 /**
+ * Detect package manager (npm, pnpm, yarn)
+ */
+async function detectPackageManager(projectRoot: string): Promise<'npm' | 'pnpm' | 'yarn'> {
+  try {
+    // Check for lock files
+    if (await fileExists(path.join(projectRoot, 'pnpm-lock.yaml'))) {
+      return 'pnpm';
+    }
+    if (await fileExists(path.join(projectRoot, 'yarn.lock'))) {
+      return 'yarn';
+    }
+    // Default to npm
+    return 'npm';
+  } catch {
+    return 'npm';
+  }
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Get all installed npm packages (recursive dependencies included)
  */
 export async function getAllInstalledPackages(
@@ -73,16 +101,29 @@ export async function getAllInstalledPackages(
     const { promisify } = await import('util');
     const execAsync = promisify(exec);
 
-    // Use npm list to get all installed packages
-    const { stdout } = await execAsync('npm list --json --all --depth=999', {
+    // Detect package manager
+    const packageManager = await detectPackageManager(projectRoot);
+    logger.info(`Detected package manager: ${packageManager}`);
+
+    let command: string;
+    if (packageManager === 'pnpm') {
+      command = 'pnpm list --json --depth=999';
+    } else if (packageManager === 'yarn') {
+      command = 'yarn list --json --depth=999';
+    } else {
+      command = 'npm list --json --all --depth=999';
+    }
+
+    // Use package manager list command to get all installed packages
+    const { stdout } = await execAsync(command, {
       cwd: projectRoot,
-      maxBuffer: 1024 * 1024 * 10, // 10MB buffer for large dependency trees
+      maxBuffer: 1024 * 1024 * 50, // 50MB buffer for large dependency trees
     });
 
     const result = JSON.parse(stdout);
     const deps = new Map<string, string>();
 
-    // Recursively extract dependencies from npm list output
+    // Recursively extract dependencies from list output
     function extractDeps(obj: any) {
       if (obj.dependencies) {
         for (const [name, info] of Object.entries(obj.dependencies)) {
@@ -99,9 +140,24 @@ export async function getAllInstalledPackages(
     }
 
     extractDeps(result);
+
+    // If no dependencies found, might be different format (pnpm)
+    if (deps.size === 0 && Array.isArray(result)) {
+      // pnpm format is an array
+      for (const pkg of result) {
+        if (pkg.name && pkg.version) {
+          deps.set(pkg.name, pkg.version);
+        }
+        // Also check dependencies
+        if (pkg.dependencies) {
+          extractDeps(pkg);
+        }
+      }
+    }
+
     return deps;
   } catch (error) {
-    logger.warn(`Could not get installed npm packages: ${error}`);
+    logger.warn(`Could not get installed packages via package manager: ${error}`);
     // Fallback: try to read from node_modules
     return await getAllPackagesFromNodeModules(projectRoot);
   }
@@ -116,6 +172,29 @@ async function getAllPackagesFromNodeModules(
   const deps = new Map<string, string>();
   const nodeModulesPath = path.join(projectRoot, 'node_modules');
 
+  try {
+    // First, try to scan regular node_modules
+    await scanNodeModulesDirectory(nodeModulesPath, deps);
+
+    // For pnpm: also scan .pnpm directory
+    const pnpmPath = path.join(nodeModulesPath, '.pnpm');
+    if (await fileExists(pnpmPath)) {
+      await scanPnpmDirectory(pnpmPath, deps);
+    }
+  } catch (error) {
+    logger.warn(`Could not scan node_modules: ${error}`);
+  }
+
+  return deps;
+}
+
+/**
+ * Scan regular node_modules directory
+ */
+async function scanNodeModulesDirectory(
+  nodeModulesPath: string,
+  deps: Map<string, string>,
+): Promise<void> {
   try {
     const entries = await fs.readdir(nodeModulesPath, { withFileTypes: true });
 
@@ -148,10 +227,38 @@ async function getAllPackagesFromNodeModules(
       }
     }
   } catch (error) {
-    logger.warn(`Could not scan node_modules: ${error}`);
+    // Ignore errors for individual directory scans
   }
+}
 
-  return deps;
+/**
+ * Scan pnpm .pnpm directory
+ */
+async function scanPnpmDirectory(
+  pnpmPath: string,
+  deps: Map<string, string>,
+): Promise<void> {
+  try {
+    const entries = await fs.readdir(pnpmPath, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        // pnpm format: package@version/node_modules/package
+        const match = entry.name.match(/^(@?[^@]+)@(.+)$/);
+        if (match) {
+          const [, packageName, version] = match;
+          // Verify by checking package.json
+          const packageDir = path.join(pnpmPath, entry.name, 'node_modules', packageName);
+          const actualVersion = await getPackageVersion(packageDir);
+          if (actualVersion) {
+            deps.set(packageName, actualVersion);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    // Ignore errors for pnpm directory scan
+  }
 }
 
 /**
