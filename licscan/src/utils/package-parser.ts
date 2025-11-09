@@ -273,13 +273,74 @@ async function getPackageVersion(packageDir: string): Promise<string | null> {
   }
 }
 
+/**
+ * Find package in pnpm .pnpm directory
+ */
+async function findPackageInPnpm(
+  projectRoot: string,
+  packageName: string,
+): Promise<string | null> {
+  try {
+    const pnpmDir = path.join(projectRoot, 'node_modules', '.pnpm');
+    if (!(await fileExists(pnpmDir))) {
+      return null;
+    }
+
+    const entries = await fs.readdir(pnpmDir, { withFileTypes: true });
+
+    // Look for package@version directories
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        // pnpm format: package@version/node_modules/package
+        // or for scoped packages: @scope+package@version/node_modules/@scope/package
+        const packageJsonPath = path.join(
+          pnpmDir,
+          entry.name,
+          'node_modules',
+          packageName,
+          'package.json',
+        );
+
+        if (await fileExists(packageJsonPath)) {
+          return packageJsonPath;
+        }
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getPackageInfo(
   packageName: string,
   projectRoot: string,
 ): Promise<DependencyInfo | null> {
-  const packageJsonPath = path.join(projectRoot, 'node_modules', packageName, 'package.json');
+  let packageJsonPath = path.join(projectRoot, 'node_modules', packageName, 'package.json');
 
   try {
+    // Check if file exists first
+    if (await fileExists(packageJsonPath)) {
+      // For pnpm: resolve symlink to actual file location
+      try {
+        const realPath = await fs.realpath(packageJsonPath);
+        packageJsonPath = realPath;
+      } catch {
+        // If realpath fails, continue with original path
+      }
+    } else {
+      // File doesn't exist in node_modules/package-name/
+      // For pnpm: try to find in .pnpm directory
+      const pnpmPackagePath = await findPackageInPnpm(projectRoot, packageName);
+      if (pnpmPackagePath) {
+        packageJsonPath = pnpmPackagePath;
+      } else {
+        // Package not found
+        return null;
+      }
+    }
+
     const pkg = await parsePackageJson(packageJsonPath);
     if (!pkg) {
       return null;
