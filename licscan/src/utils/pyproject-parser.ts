@@ -200,12 +200,17 @@ try:
     license_expr = meta.get('License-Expression')
     if license_expr and license_expr.strip():
         license_info = license_expr.strip()
-    
+
     if not license_info:
         license_field = meta.get('License')
+        # Only use License field if it's a single line (not full license text)
         if license_field and license_field.strip():
-            license_info = license_field.strip()
-    
+            license_text = license_field.strip()
+            # Check if it's a short, single-line license identifier
+            # Heuristic: if it contains newlines or is > 100 chars, it's likely full text
+            if '\\n' not in license_text and len(license_text) <= 100:
+                license_info = license_text
+
     if not license_info:
         classifiers = meta.get_all('Classifier') or []
         license_classifiers = [c for c in classifiers if c.startswith('License ::')]
