@@ -99,17 +99,31 @@ const pnpmPathCache = new Map<string, string>();
 export async function getAllInstalledPackages(
   projectRoot: string,
 ): Promise<Map<string, string>> {
+  // Clear pnpm cache
+  pnpmPathCache.clear();
+
+  // Detect package manager
+  const packageManager = await detectPackageManager(projectRoot);
+  logger.info(`Detected package manager: ${packageManager}`);
+
+  // For pnpm, try direct .pnpm scan first (more reliable for large projects)
+  if (packageManager === 'pnpm') {
+    const pnpmPath = path.join(projectRoot, 'node_modules', '.pnpm');
+    if (await fileExists(pnpmPath)) {
+      logger.info('Scanning .pnpm directory directly for large project support');
+      const deps = new Map<string, string>();
+      await scanPnpmDirectory(pnpmPath, deps);
+      if (deps.size > 0) {
+        return deps;
+      }
+    }
+  }
+
+  // Try using package manager list command
   try {
     const { exec } = await import('child_process');
     const { promisify } = await import('util');
     const execAsync = promisify(exec);
-
-    // Detect package manager
-    const packageManager = await detectPackageManager(projectRoot);
-    logger.info(`Detected package manager: ${packageManager}`);
-
-    // Clear pnpm cache
-    pnpmPathCache.clear();
 
     let command: string;
     if (packageManager === 'pnpm') {
@@ -256,16 +270,45 @@ async function scanPnpmDirectory(
 
     for (const entry of entries) {
       if (entry.isDirectory()) {
-        // pnpm format: package@version/node_modules/package
-        const match = entry.name.match(/^(@?[^@]+)@(.+)$/);
-        if (match) {
-          const [, packageName, version] = match;
-          // Verify by checking package.json
-          const packageDir = path.join(pnpmPath, entry.name, 'node_modules', packageName);
-          const actualVersion = await getPackageVersion(packageDir);
-          if (actualVersion) {
-            deps.set(packageName, actualVersion);
+        // pnpm format: package@version or @scope+package@version_peer-deps
+        // Extract package name and version from directory name
+        const dirName = entry.name;
+
+        // For scoped packages: @scope+package@version_... -> @scope/package
+        // For regular packages: package@version -> package
+        let packageName: string;
+        let versionPart: string;
+
+        if (dirName.startsWith('@')) {
+          // Scoped package: @scope+package@version...
+          const match = dirName.match(/^(@[^+]+)\+([^@]+)@(.+)$/);
+          if (match) {
+            const [, scope, name, version] = match;
+            packageName = `${scope}/${name}`;
+            versionPart = version.split('_')[0]; // Remove peer dependency info
+          } else {
+            continue;
           }
+        } else {
+          // Regular package: package@version
+          const match = dirName.match(/^([^@]+)@(.+)$/);
+          if (match) {
+            const [, name, version] = match;
+            packageName = name;
+            versionPart = version;
+          } else {
+            continue;
+          }
+        }
+
+        // Cache the path for this package
+        const packagePath = path.join(pnpmPath, entry.name, 'node_modules', packageName);
+        pnpmPathCache.set(packageName, packagePath);
+
+        // Get version from package.json
+        const actualVersion = await getPackageVersion(packagePath);
+        if (actualVersion) {
+          deps.set(packageName, actualVersion);
         }
       }
     }
