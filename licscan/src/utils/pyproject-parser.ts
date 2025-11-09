@@ -181,56 +181,130 @@ export async function getPythonPackageInfo(
     const { exec } = await import('child_process');
     const { promisify } = await import('util');
     const execAsync = promisify(exec);
+    const os = await import('os');
 
     // Detect the Python environment
     const env = await detectPythonEnvironment(projectRoot);
     const cmdPrefix = buildCommandPrefix(env);
 
-    // Build the pip show command with appropriate prefix
-    const pipShowCommand = cmdPrefix ? `${cmdPrefix} pip show ${packageName}` : `pip show ${packageName}`;
+    // Python script to extract package metadata using importlib.metadata
+    const pythonScript = `import importlib.metadata as metadata
+import json
+import sys
 
-    // Execute command in the project root directory
-    const { stdout } = await execAsync(pipShowCommand, { cwd: projectRoot });
+try:
+    pkg_name = sys.argv[1]
+    meta = metadata.metadata(pkg_name)
+    
+    license_info = None
+    license_expr = meta.get('License-Expression')
+    if license_expr and license_expr.strip():
+        license_info = license_expr.strip()
+    
+    if not license_info:
+        license_field = meta.get('License')
+        if license_field and license_field.strip():
+            license_info = license_field.strip()
+    
+    if not license_info:
+        classifiers = meta.get_all('Classifier') or []
+        license_classifiers = [c for c in classifiers if c.startswith('License ::')]
+        if license_classifiers:
+            licenses = []
+            for lc in license_classifiers:
+                parts = lc.split('::')
+                if len(parts) >= 3:
+                    license_name = parts[-1].strip()
+                    if license_name and license_name not in licenses:
+                        licenses.append(license_name)
+            if licenses:
+                license_info = '; '.join(licenses)
+    
+    location = None
+    try:
+        dist = metadata.distribution(pkg_name)
+        if hasattr(dist, '_path') and dist._path:
+            location = str(dist._path.parent)
+    except:
+        pass
+    
+    result = {
+        'name': meta.get('Name'),
+        'version': meta.get('Version'),
+        'license': license_info,
+        'author': meta.get('Author'),
+        'homepage': meta.get('Home-page'),
+        'location': location
+    }
+    
+    print(json.dumps(result))
+except Exception as e:
+    import traceback
+    error_msg = f"{str(e)}\\n{traceback.format_exc()}"
+    print(json.dumps({'error': error_msg}), file=sys.stderr)
+    sys.exit(1)
+`;
 
-    const info: PythonPackageInfo = {
-      name: packageName,
-      version: 'unknown',
-    };
+    // Create a temporary file for the Python script
+    const tmpDir = os.tmpdir();
+    const tmpFile = path.join(tmpDir, `licscan-${Date.now()}-${Math.random().toString(36).slice(2)}.py`);
+    
+    try {
+      await fs.writeFile(tmpFile, pythonScript, 'utf-8');
 
-    let packageLocation = '';
-    let packageRealName = '';
+      // Build the Python command with appropriate prefix
+      const pythonCommand = cmdPrefix
+        ? `${cmdPrefix} python3 ${tmpFile} ${JSON.stringify(packageName)}`
+        : `python3 ${tmpFile} ${JSON.stringify(packageName)}`;
 
-    // Parse pip show output
-    const lines = stdout.split('\n');
-    for (const line of lines) {
-      const [key, ...valueParts] = line.split(':');
-      const value = valueParts.join(':').trim();
+      // Execute command in the project root directory
+      const { stdout, stderr } = await execAsync(pythonCommand, { cwd: projectRoot });
 
-      if (key === 'Name') {
-        packageRealName = value;
-      } else if (key === 'Version') {
-        info.version = value;
-      } else if (key === 'License') {
-        info.license = value;
-      } else if (key === 'Author') {
-        info.author = value;
-      } else if (key === 'Home-page') {
-        info.homepage = value;
-      } else if (key === 'Location') {
-        packageLocation = value;
+      // Check for errors
+      if (stderr) {
+        try {
+          const errorData = JSON.parse(stderr);
+          if (errorData.error) {
+            throw new Error(errorData.error);
+          }
+        } catch {
+          // Not JSON, might be warning - ignore
+        }
+      }
+
+      // Parse JSON output
+      const result = JSON.parse(stdout);
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      const info: PythonPackageInfo = {
+        name: result.name || packageName,
+        version: result.version || 'unknown',
+        license: result.license,
+        author: result.author,
+        homepage: result.homepage,
+      };
+
+      // Try to get copyright from package metadata
+      if (result.location && result.name && result.version) {
+        info.copyright = await extractPythonCopyright(
+          result.name,
+          result.version,
+          result.location,
+        );
+      }
+
+      return info;
+    } finally {
+      // Clean up temporary file
+      try {
+        await fs.unlink(tmpFile);
+      } catch {
+        // Ignore cleanup errors
       }
     }
-
-    // Try to get copyright from package metadata
-    if (packageLocation && packageRealName && info.version) {
-      info.copyright = await extractPythonCopyright(
-        packageRealName,
-        info.version,
-        packageLocation,
-      );
-    }
-
-    return info;
   } catch (error) {
     logger.warn(`Could not read Python package info for ${packageName}: ${error}`);
     return null;

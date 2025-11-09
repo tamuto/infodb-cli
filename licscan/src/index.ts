@@ -9,7 +9,7 @@ const program = new Command();
 program
   .name('licscan')
   .description('License and Copyright Scanner for package.json and pyproject.toml')
-  .version('0.2.0');
+  .version('0.3.0');
 
 program
   .command('scan')
