@@ -15,6 +15,7 @@ export interface PythonPackageInfo {
   version: string;
   license?: string;
   copyright?: string;
+  licenseText?: string;
   author?: string;
   homepage?: string;
 }
@@ -347,9 +348,14 @@ except Exception as e:
         homepage: result.homepage,
       };
 
-      // Try to get copyright from package metadata
+      // Try to get copyright and license text from package metadata
       if (result.location && result.name && result.version) {
         info.copyright = await extractPythonCopyright(
+          result.name,
+          result.version,
+          result.location,
+        );
+        info.licenseText = await getPythonLicenseText(
           result.name,
           result.version,
           result.location,
@@ -369,6 +375,55 @@ except Exception as e:
     logger.warn(`Could not read Python package info for ${packageName}: ${error}`);
     return null;
   }
+}
+
+async function getPythonLicenseText(
+  packageRealName: string,
+  version: string,
+  location: string,
+): Promise<string | undefined> {
+  try {
+    const lowerName = packageRealName.toLowerCase();
+    const nameWithHyphens = lowerName.replace(/_/g, '-');
+    const nameWithUnderscores = lowerName.replace(/-/g, '_');
+
+    // Try to find LICENSE file in common locations
+    const possiblePaths = [
+      // .dist-info directory with licenses/ subdirectory (newer Python packaging standard)
+      path.join(location, `${nameWithHyphens}-${version}.dist-info`, 'licenses', 'LICENSE'),
+      path.join(location, `${nameWithHyphens}-${version}.dist-info`, 'licenses', 'LICENSE.txt'),
+      path.join(location, `${nameWithUnderscores}-${version}.dist-info`, 'licenses', 'LICENSE'),
+      path.join(location, `${nameWithUnderscores}-${version}.dist-info`, 'licenses', 'LICENSE.txt'),
+      // .dist-info directory (most common for pip-installed packages)
+      path.join(location, `${nameWithHyphens}-${version}.dist-info`, 'LICENSE'),
+      path.join(location, `${nameWithHyphens}-${version}.dist-info`, 'LICENSE.txt'),
+      path.join(location, `${nameWithHyphens}-${version}.dist-info`, 'COPYING'),
+      path.join(location, `${nameWithUnderscores}-${version}.dist-info`, 'LICENSE'),
+      path.join(location, `${nameWithUnderscores}-${version}.dist-info`, 'LICENSE.txt'),
+      // Try with original case as well
+      path.join(location, `${packageRealName}-${version}.dist-info`, 'licenses', 'LICENSE'),
+      path.join(location, `${packageRealName}-${version}.dist-info`, 'LICENSE'),
+      // Package directory itself
+      path.join(location, nameWithUnderscores, 'LICENSE'),
+      path.join(location, nameWithUnderscores, 'LICENSE.txt'),
+      path.join(location, nameWithUnderscores, 'LICENSE.md'),
+      path.join(location, nameWithUnderscores, 'COPYING'),
+    ];
+
+    for (const licensePath of possiblePaths) {
+      try {
+        const content = await fs.readFile(licensePath, 'utf-8');
+        return content;
+      } catch {
+        // File doesn't exist, try next path
+        continue;
+      }
+    }
+  } catch {
+    // Ignore errors
+  }
+
+  return undefined;
 }
 
 async function extractPythonCopyright(

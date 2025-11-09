@@ -19,6 +19,7 @@ export interface ScanResult {
     version: string;
     license?: string;
     copyright?: string;
+    licenseText?: string;
     author?: string;
     repository?: string;
     homepage?: string;
@@ -203,6 +204,16 @@ function formatText(results: ScanResult[]): string {
         }
       }
 
+      if (pkg.licenseText) {
+        output += `License Text:\n`;
+        output += `${'~'.repeat(80)}\n`;
+        output += pkg.licenseText;
+        if (!pkg.licenseText.endsWith('\n')) {
+          output += '\n';
+        }
+        output += `${'~'.repeat(80)}\n`;
+      }
+
       output += `${'-'.repeat(80)}\n`;
     }
   }
@@ -215,7 +226,7 @@ function formatJson(results: ScanResult[]): string {
 }
 
 function formatCsv(results: ScanResult[]): string {
-  let csv = 'Type,Name,Version,License,Author,Homepage,Repository,Copyright\n';
+  let csv = 'Type,Name,Version,License,Author,Homepage,Repository,Copyright,LicenseText\n';
 
   for (const result of results) {
     for (const pkg of result.packages) {
@@ -228,6 +239,7 @@ function formatCsv(results: ScanResult[]): string {
         pkg.homepage || '',
         pkg.repository || '',
         (pkg.copyright || '').replace(/\n/g, ' '),
+        (pkg.licenseText || '').replace(/\n/g, ' '),
       ];
 
       csv += row.map((field) => `"${field}"`).join(',') + '\n';

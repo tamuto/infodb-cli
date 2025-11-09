@@ -18,6 +18,7 @@ export interface DependencyInfo {
   version: string;
   license?: string;
   copyright?: string;
+  licenseText?: string;
   author?: string;
   repository?: string;
   homepage?: string;
@@ -194,13 +195,16 @@ export async function getPackageInfo(
     }
 
     // Try to extract copyright from LICENSE file
-    const copyright = await extractCopyright(path.dirname(packageJsonPath));
+    const packageDir = path.dirname(packageJsonPath);
+    const copyright = await extractCopyright(packageDir);
+    const licenseText = await getLicenseText(packageDir);
 
     return {
       name: pkg.name || packageName,
       version: pkg.version || 'unknown',
       license: pkg.license || 'Unknown',
       copyright,
+      licenseText,
       author,
       repository,
       homepage: pkg.homepage,
@@ -209,6 +213,23 @@ export async function getPackageInfo(
     logger.warn(`Could not read package info for ${packageName}: ${error}`);
     return null;
   }
+}
+
+async function getLicenseText(packageDir: string): Promise<string | undefined> {
+  const licenseFiles = ['LICENSE', 'LICENSE.md', 'LICENSE.txt', 'COPYING'];
+
+  for (const filename of licenseFiles) {
+    const licensePath = path.join(packageDir, filename);
+    try {
+      const content = await fs.readFile(licensePath, 'utf-8');
+      return content;
+    } catch {
+      // File doesn't exist, try next
+      continue;
+    }
+  }
+
+  return undefined;
 }
 
 async function extractCopyright(packageDir: string): Promise<string | undefined> {
