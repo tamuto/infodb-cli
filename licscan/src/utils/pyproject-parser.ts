@@ -275,13 +275,34 @@ async function extractPythonCopyright(
     for (const licensePath of possiblePaths) {
       try {
         const content = await fs.readFile(licensePath, 'utf-8');
-
-        // Look for copyright lines
         const lines = content.split('\n');
-        const copyrightLines = lines
-          .filter((line) => /copyright/i.test(line))
-          .map((line) => line.trim())
-          .slice(0, 3);
+
+        // Smart filtering: extract consecutive copyright lines from the beginning
+        const copyrightLines: string[] = [];
+        let foundFirstCopyright = false;
+        let consecutiveNonCopyrightLines = 0;
+        const maxGap = 2; // Allow up to 2 non-copyright lines before stopping
+
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          const isCopyrightLine = /copyright/i.test(line);
+
+          if (isCopyrightLine) {
+            foundFirstCopyright = true;
+            consecutiveNonCopyrightLines = 0;
+            copyrightLines.push(trimmedLine);
+          } else if (foundFirstCopyright) {
+            // Check if this is a meaningful line (not just empty or whitespace)
+            if (trimmedLine.length > 0) {
+              consecutiveNonCopyrightLines++;
+              if (consecutiveNonCopyrightLines >= maxGap) {
+                // Too many non-copyright lines, stop here
+                break;
+              }
+            }
+            // Empty lines don't count towards the gap, but we don't add them
+          }
+        }
 
         if (copyrightLines.length > 0) {
           return copyrightLines.join('\n');
