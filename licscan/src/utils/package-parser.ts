@@ -90,6 +90,9 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
+// Cache for pnpm package paths
+const pnpmPathCache = new Map<string, string>();
+
 /**
  * Get all installed npm packages (recursive dependencies included)
  */
@@ -105,9 +108,12 @@ export async function getAllInstalledPackages(
     const packageManager = await detectPackageManager(projectRoot);
     logger.info(`Detected package manager: ${packageManager}`);
 
+    // Clear pnpm cache
+    pnpmPathCache.clear();
+
     let command: string;
     if (packageManager === 'pnpm') {
-      command = 'pnpm list --json --depth=999';
+      command = 'pnpm list --json --depth=999 --prod';
     } else if (packageManager === 'yarn') {
       command = 'yarn list --json --depth=999';
     } else {
@@ -130,6 +136,10 @@ export async function getAllInstalledPackages(
           const depInfo = info as any;
           if (depInfo.version) {
             deps.set(name, depInfo.version);
+            // For pnpm: cache the actual path
+            if (depInfo.path) {
+              pnpmPathCache.set(name, depInfo.path);
+            }
           }
           // Recurse into nested dependencies
           if (depInfo.dependencies) {
@@ -147,6 +157,9 @@ export async function getAllInstalledPackages(
       for (const pkg of result) {
         if (pkg.name && pkg.version) {
           deps.set(pkg.name, pkg.version);
+          if (pkg.path) {
+            pnpmPathCache.set(pkg.name, pkg.path);
+          }
         }
         // Also check dependencies
         if (pkg.dependencies) {
@@ -317,27 +330,36 @@ export async function getPackageInfo(
   packageName: string,
   projectRoot: string,
 ): Promise<DependencyInfo | null> {
-  let packageJsonPath = path.join(projectRoot, 'node_modules', packageName, 'package.json');
+  let packageJsonPath: string;
 
   try {
-    // Check if file exists first
-    if (await fileExists(packageJsonPath)) {
-      // For pnpm: resolve symlink to actual file location
-      try {
-        const realPath = await fs.realpath(packageJsonPath);
-        packageJsonPath = realPath;
-      } catch {
-        // If realpath fails, continue with original path
-      }
+    // First, check if we have cached path from pnpm list
+    if (pnpmPathCache.has(packageName)) {
+      const cachedPath = pnpmPathCache.get(packageName)!;
+      packageJsonPath = path.join(cachedPath, 'package.json');
     } else {
-      // File doesn't exist in node_modules/package-name/
-      // For pnpm: try to find in .pnpm directory
-      const pnpmPackagePath = await findPackageInPnpm(projectRoot, packageName);
-      if (pnpmPackagePath) {
-        packageJsonPath = pnpmPackagePath;
+      // Default path
+      packageJsonPath = path.join(projectRoot, 'node_modules', packageName, 'package.json');
+
+      // Check if file exists first
+      if (await fileExists(packageJsonPath)) {
+        // For pnpm: resolve symlink to actual file location
+        try {
+          const realPath = await fs.realpath(packageJsonPath);
+          packageJsonPath = realPath;
+        } catch {
+          // If realpath fails, continue with original path
+        }
       } else {
-        // Package not found
-        return null;
+        // File doesn't exist in node_modules/package-name/
+        // For pnpm: try to find in .pnpm directory
+        const pnpmPackagePath = await findPackageInPnpm(projectRoot, packageName);
+        if (pnpmPackagePath) {
+          packageJsonPath = pnpmPackagePath;
+        } else {
+          // Package not found
+          return null;
+        }
       }
     }
 
