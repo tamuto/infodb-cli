@@ -70,15 +70,16 @@ async function scanNpmDependencies(
   projectPath: string,
   includeDev: boolean,
 ): Promise<ScanResult | null> {
-  // Use getAllInstalledPackages to get all dependencies recursively
-  const deps = await packageParser.getAllInstalledPackages(projectPath);
+  // Get only packages defined in package.json (not all installed packages)
+  const packageJsonPath = path.join(projectPath, 'package.json');
+  const deps = await packageParser.getDependencies(packageJsonPath, includeDev);
 
   if (deps.size === 0) {
-    logger.warn('No npm dependencies found');
+    logger.warn('No npm dependencies found in package.json');
     return null;
   }
 
-  logger.info(`Found ${deps.size} npm dependencies (including nested)`);
+  logger.info(`Found ${deps.size} npm dependencies defined in package.json`);
 
   // Build dependency graph
   logger.info('Building dependency graph...');
@@ -110,20 +111,25 @@ async function scanPythonDependencies(
   projectPath: string,
   includeDev: boolean,
 ): Promise<ScanResult | null> {
-  // Use getAllInstalledPackages to get all dependencies recursively
-  const deps = await pyprojectParser.getAllInstalledPackages(projectPath);
+  // Get only packages defined in pyproject.toml (not all installed packages)
+  const pyprojectPath = path.join(projectPath, 'pyproject.toml');
+  const deps = await pyprojectParser.getDependencies(pyprojectPath, includeDev);
 
   if (deps.size === 0) {
-    logger.warn('No Python dependencies found');
+    logger.warn('No Python dependencies found in pyproject.toml');
     return null;
   }
 
-  logger.info(`Found ${deps.size} Python dependencies (including nested)`);
+  logger.info(`Found ${deps.size} Python dependencies defined in pyproject.toml`);
+
+  // Build dependency graph
+  logger.info('Building Python dependency graph...');
+  const graph = await pyprojectParser.buildPythonDependencyGraph(projectPath);
 
   const packages: ScanResult['packages'] = [];
 
   for (const [name] of deps) {
-    const info = await pyprojectParser.getPythonPackageInfo(name, projectPath);
+    const info = await pyprojectParser.getPythonPackageInfoWithDependencies(name, projectPath, graph);
     if (info) {
       packages.push(info);
     } else {
