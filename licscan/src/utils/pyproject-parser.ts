@@ -18,6 +18,14 @@ export interface PythonPackageInfo {
   licenseText?: string;
   author?: string;
   homepage?: string;
+  requiredBy?: string[];
+  dependencyPaths?: string[][];
+}
+
+export interface PythonDependencyGraph {
+  packages: Map<string, string>; // name -> version
+  requiredBy: Map<string, Set<string>>; // name -> Set of packages that require it
+  dependencies: Map<string, Set<string>>; // name -> Set of dependencies
 }
 
 type PythonEnvironment = 'venv' | 'poetry' | 'uv' | 'system';
@@ -227,6 +235,235 @@ export async function getAllInstalledPackages(
     logger.warn(`Could not get installed Python packages: ${error}`);
     return new Map();
   }
+}
+
+/**
+ * Build Python dependency graph using pip show
+ */
+export async function buildPythonDependencyGraph(
+  projectRoot: string,
+): Promise<PythonDependencyGraph> {
+  const graph: PythonDependencyGraph = {
+    packages: new Map(),
+    requiredBy: new Map(),
+    dependencies: new Map(),
+  };
+
+  try {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+
+    // Detect the Python environment
+    const env = await detectPythonEnvironment(projectRoot);
+    const cmdPrefix = buildCommandPrefix(env);
+
+    // Get all installed packages
+    const pipListCommand = cmdPrefix
+      ? `${cmdPrefix} pip list --format=json`
+      : `pip list --format=json`;
+
+    const { stdout: listOutput } = await execAsync(pipListCommand, { cwd: projectRoot });
+    const packages = JSON.parse(listOutput) as Array<{ name: string; version: string }>;
+
+    if (packages.length === 0) {
+      return graph;
+    }
+
+    // Get package names
+    const packageNames = packages.map(p => p.name);
+
+    // Use pip show to get dependency information for all packages at once
+    const pipShowCommand = cmdPrefix
+      ? `${cmdPrefix} pip show ${packageNames.join(' ')}`
+      : `pip show ${packageNames.join(' ')}`;
+
+    const { stdout: showOutput } = await execAsync(pipShowCommand, { 
+      cwd: projectRoot,
+      maxBuffer: 1024 * 1024 * 50, // 50MB buffer
+    });
+
+    // Parse pip show output (it's not JSON, but text format)
+    // Format:
+    // Name: package-name
+    // Version: x.y.z
+    // Requires: dep1, dep2, dep3
+    // Required-by: parent1, parent2
+    // ---
+    const packageBlocks = showOutput.split('---\n').filter(block => block.trim());
+
+    for (const block of packageBlocks) {
+      const lines = block.split('\n');
+      let name = '';
+      let version = '';
+      const requires: string[] = [];
+      const requiredBy: string[] = [];
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('Name:')) {
+          name = trimmed.substring(5).trim();
+        } else if (trimmed.startsWith('Version:')) {
+          version = trimmed.substring(8).trim();
+        } else if (trimmed.startsWith('Requires:')) {
+          const reqStr = trimmed.substring(9).trim();
+          if (reqStr) {
+            requires.push(...reqStr.split(',').map(s => s.trim()).filter(s => s));
+          }
+        } else if (trimmed.startsWith('Required-by:')) {
+          const reqByStr = trimmed.substring(12).trim();
+          if (reqByStr) {
+            requiredBy.push(...reqByStr.split(',').map(s => s.trim()).filter(s => s));
+          }
+        }
+      }
+
+      if (name && version) {
+        // Add package
+        graph.packages.set(name, version);
+
+        // Track dependencies
+        if (requires.length > 0) {
+          graph.dependencies.set(name, new Set(requires));
+        }
+
+        // Track who requires this package
+        if (!graph.requiredBy.has(name)) {
+          graph.requiredBy.set(name, new Set());
+        }
+        for (const parent of requiredBy) {
+          graph.requiredBy.get(name)!.add(parent);
+        }
+      }
+    }
+
+    // Add direct dependencies from pyproject.toml to the graph
+    // This ensures root project's dependencies are tracked even if project isn't installed
+    const pyprojectPath = path.join(projectRoot, 'pyproject.toml');
+    const pyprojectInfo = await parsePyProjectToml(pyprojectPath);
+    
+    if (pyprojectInfo) {
+      const rootName = pyprojectInfo.name || 'root';
+      
+      // Get direct dependencies from pyproject.toml
+      const directDeps: string[] = [];
+      if (pyprojectInfo.dependencies) {
+        for (const dep of pyprojectInfo.dependencies) {
+          // Skip python itself
+          if (dep.toLowerCase() === 'python') continue;
+          
+          // Parse package name from strings like "requests>=2.28.0"
+          const match = dep.match(/^([a-zA-Z0-9-_.]+)(.*)$/);
+          if (match) {
+            directDeps.push(match[1]);
+          }
+        }
+      }
+      
+      // Add root's dependencies to graph
+      if (directDeps.length > 0) {
+        graph.dependencies.set(rootName, new Set(directDeps));
+        
+        // Update requiredBy for each direct dependency
+        for (const dep of directDeps) {
+          // Normalize package name (handle _ vs -)
+          const normalizedDep = dep.toLowerCase().replace(/_/g, '-');
+          
+          // Find the actual package name in the graph (case-insensitive, handle _ vs -)
+          let actualPackageName = dep;
+          for (const pkgName of graph.packages.keys()) {
+            const normalizedPkg = pkgName.toLowerCase().replace(/_/g, '-');
+            if (normalizedPkg === normalizedDep) {
+              actualPackageName = pkgName;
+              break;
+            }
+          }
+          
+          if (!graph.requiredBy.has(actualPackageName)) {
+            graph.requiredBy.set(actualPackageName, new Set());
+          }
+          graph.requiredBy.get(actualPackageName)!.add(rootName);
+        }
+      }
+    }
+
+    logger.info(`Built Python dependency graph with ${graph.packages.size} packages`);
+  } catch (error) {
+    logger.warn(`Could not build Python dependency graph: ${error}`);
+  }
+
+  return graph;
+}
+
+/**
+ * Find all dependency paths from root to target package
+ */
+function findPythonDependencyPaths(
+  targetPackage: string,
+  graph: PythonDependencyGraph,
+  rootName: string,
+): string[][] {
+  const paths: string[][] = [];
+  const visited = new Set<string>();
+
+  function dfs(currentPackage: string, currentPath: string[]) {
+    // Normalize package name for comparison (case-insensitive, handle _ vs -)
+    const normalizedCurrent = currentPackage.toLowerCase().replace(/_/g, '-');
+    const normalizedTarget = targetPackage.toLowerCase().replace(/_/g, '-');
+
+    if (normalizedCurrent === normalizedTarget) {
+      paths.push([...currentPath, currentPackage]);
+      return;
+    }
+
+    if (visited.has(normalizedCurrent)) {
+      return; // Avoid cycles
+    }
+
+    visited.add(normalizedCurrent);
+
+    const deps = graph.dependencies.get(currentPackage);
+    if (deps) {
+      for (const dep of deps) {
+        dfs(dep, [...currentPath, currentPackage]);
+      }
+    }
+
+    visited.delete(normalizedCurrent);
+  }
+
+  dfs(rootName, []);
+  return paths;
+}
+
+/**
+ * Get Python package info with dependency information
+ */
+export async function getPythonPackageInfoWithDependencies(
+  packageName: string,
+  projectRoot: string,
+  graph: PythonDependencyGraph,
+): Promise<PythonPackageInfo | null> {
+  const baseInfo = await getPythonPackageInfo(packageName, projectRoot);
+  if (!baseInfo) {
+    return null;
+  }
+
+  // Add dependency information
+  const requiredBy = Array.from(graph.requiredBy.get(packageName) || []);
+
+  // Get root package name from pyproject.toml
+  const pyprojectPath = path.join(projectRoot, 'pyproject.toml');
+  const pyprojectInfo = await parsePyProjectToml(pyprojectPath);
+  const rootName = pyprojectInfo?.name || 'root';
+
+  const dependencyPaths = findPythonDependencyPaths(packageName, graph, rootName);
+
+  return {
+    ...baseInfo,
+    requiredBy: requiredBy.length > 0 ? requiredBy : undefined,
+    dependencyPaths: dependencyPaths.length > 0 ? dependencyPaths : undefined,
+  };
 }
 
 export async function getPythonPackageInfo(
