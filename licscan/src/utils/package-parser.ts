@@ -122,20 +122,7 @@ export async function getAllInstalledPackages(
   const packageManager = await detectPackageManager(projectRoot);
   logger.info(`Detected package manager: ${packageManager}`);
 
-  // For pnpm, try direct .pnpm scan first (more reliable for large projects)
-  if (packageManager === 'pnpm') {
-    const pnpmPath = path.join(projectRoot, 'node_modules', '.pnpm');
-    if (await fileExists(pnpmPath)) {
-      logger.info('Scanning .pnpm directory directly for large project support');
-      const deps = new Map<string, string>();
-      await scanPnpmDirectory(pnpmPath, deps);
-      if (deps.size > 0) {
-        return deps;
-      }
-    }
-  }
-
-  // Try using package manager list command
+  // Use package manager list command to get dependency graph information
   try {
     const { exec } = await import('child_process');
     const { promisify } = await import('util');
@@ -153,7 +140,7 @@ export async function getAllInstalledPackages(
     // Use package manager list command to get all installed packages
     const { stdout } = await execAsync(command, {
       cwd: projectRoot,
-      maxBuffer: 1024 * 1024 * 50, // 50MB buffer for large dependency trees
+      maxBuffer: 1024 * 1024 * 100, // 100MB buffer for large dependency trees
     });
 
     const result = JSON.parse(stdout);
@@ -604,7 +591,7 @@ export async function buildDependencyGraph(
 
       const { stdout } = await execAsync(command, {
         cwd: projectRoot,
-        maxBuffer: 1024 * 1024 * 50,
+        maxBuffer: 1024 * 1024 * 100, // 100MB buffer for large dependency trees
       });
 
       result = JSON.parse(stdout);
