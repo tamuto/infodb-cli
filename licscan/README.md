@@ -14,12 +14,15 @@ This tool helps you maintain compliance by providing a clear view of all license
 
 - Scan npm dependencies from `package.json`
 - Scan Python dependencies from `pyproject.toml`
+- **Package manager support**: npm, pnpm, yarn
 - **Automatic Python environment detection** (uv, Poetry, venv, system)
 - Extract license information from package metadata
 - Extract copyright information from LICENSE files
-- Support for multiple output formats: text, JSON, CSV
+- **Dependency tracking**: Shows which packages depend on each dependency and dependency paths from root
+- Support for multiple output formats: text, JSON, CSV, **Markdown**
 - Include or exclude dev dependencies
 - Export results to file
+- **Large project support**: Handles projects with hundreds of dependencies
 
 ## Installation
 
@@ -50,7 +53,7 @@ licscan scan /path/to/project
 ### Options
 
 - `-d, --include-dev` - Include dev dependencies (default: false)
-- `-f, --format <format>` - Output format: `text`, `json`, or `csv` (default: text)
+- `-f, --format <format>` - Output format: `text`, `json`, `csv`, or `markdown` (default: text)
 - `-o, --output <file>` - Write output to file instead of stdout
 - `--npm-only` - Scan only npm dependencies (package.json)
 - `--python-only` - Scan only Python dependencies (pyproject.toml)
@@ -70,6 +73,11 @@ licscan -f json -o licenses.json
 Export to CSV with dev dependencies:
 ```bash
 licscan -d -f csv -o licenses.csv
+```
+
+Export to Markdown:
+```bash
+licscan -f markdown -o licenses.md
 ```
 
 Scan only npm dependencies:
@@ -106,6 +114,7 @@ License: MIT
 Author:  TJ Holowaychuk
 Homepage: https://github.com/tj/commander.js
 Repository: git+https://github.com/tj/commander.js.git
+Dependency path: my-project → commander
 Copyright:
   Copyright (c) 2011 TJ Holowaychuk <tj@vision-media.ca>
 --------------------------------------------------------------------------------
@@ -113,7 +122,7 @@ Copyright:
 ```
 
 ### JSON
-Machine-readable JSON format:
+Machine-readable JSON format with dependency tracking:
 ```json
 [
   {
@@ -126,7 +135,9 @@ Machine-readable JSON format:
         "copyright": "Copyright (c) 2011 TJ Holowaychuk <tj@vision-media.ca>",
         "author": "TJ Holowaychuk",
         "repository": "git+https://github.com/tj/commander.js.git",
-        "homepage": "https://github.com/tj/commander.js"
+        "homepage": "https://github.com/tj/commander.js",
+        "requiredBy": ["my-project"],
+        "dependencyPaths": [["my-project", "commander"]]
       }
     ]
   }
@@ -134,20 +145,57 @@ Machine-readable JSON format:
 ```
 
 ### CSV
-Spreadsheet-compatible format:
+Spreadsheet-compatible format with dependency information:
 ```csv
-Type,Name,Version,License,Author,Homepage,Repository,Copyright
-npm,commander,11.1.0,MIT,TJ Holowaychuk,https://github.com/tj/commander.js,git+https://github.com/tj/commander.js.git,Copyright (c) 2011 TJ Holowaychuk <tj@vision-media.ca>
+Type,Name,Version,License,Author,Homepage,Repository,RequiredBy,DependencyPath,Copyright
+npm,commander,11.1.0,MIT,TJ Holowaychuk,https://github.com/tj/commander.js,git+https://github.com/tj/commander.js.git,my-project,my-project → commander,Copyright (c) 2011 TJ Holowaychuk <tj@vision-media.ca>
+```
+
+### Markdown
+Documentation-friendly format with table of contents and sorted packages:
+```markdown
+# License Report
+
+## Table of Contents
+
+### NPM Packages
+- [commander@11.1.0](#commander-11-1-0) - MIT
+- [express@4.18.0](#express-4-18-0) - MIT
+
+### Python Packages
+- [requests@2.31.0](#requests-2-31-0) - Apache-2.0
+
+---
+
+## NPM Packages
+
+### commander@11.1.0
+
+- **License:** MIT
+- **Author:** TJ Holowaychuk
+- **Homepage:** https://github.com/tj/commander.js
+- **Repository:** git+https://github.com/tj/commander.js.git
+- **Dependency path:** my-project → commander
+
+**Copyright:**
+\```
+Copyright (c) 2011 TJ Holowaychuk <tj@vision-media.ca>
+\```
 ```
 
 ## How It Works
 
 ### For npm packages (package.json):
-1. Reads `package.json` to get dependency list
-2. For each dependency, reads `node_modules/<package>/package.json`
-3. Extracts license information from package metadata
-4. Reads LICENSE file to extract copyright information
-5. Compiles all information into structured output
+1. Detects package manager (npm, pnpm, or yarn)
+2. Runs `pnpm list --prod` / `npm list` / `yarn list` to get full dependency tree
+3. Builds dependency graph to track relationships between packages
+4. For each dependency, reads package.json and LICENSE files
+5. Extracts license information from package metadata
+6. Extracts copyright information from LICENSE files
+7. Calculates dependency paths from root to each package
+8. Compiles all information with dependency tracking into structured output
+
+**Note:** The tool uses production dependencies only (`--prod` flag for pnpm) to ensure only runtime dependencies are included in the report.
 
 ### For Python packages (pyproject.toml):
 1. Reads `pyproject.toml` (supports both Poetry and PEP 621 formats)
@@ -204,9 +252,11 @@ licscan/
     ├── index.ts          # Main CLI setup
     ├── commands/
     │   └── scan.ts       # Scan command implementation
+    ├── templates/
+    │   └── licenses.md.hbs  # Handlebars template for Markdown output
     └── utils/
         ├── logger.ts     # Logging utility
-        ├── package-parser.ts      # npm package parser
+        ├── package-parser.ts      # npm package parser with dependency graph
         └── pyproject-parser.ts    # Python package parser
 ```
 
@@ -220,6 +270,7 @@ licscan/
   - **System Python**: Falls back when no virtual environment is detected
 - Copyright extraction depends on the presence of LICENSE files and may not work for all packages
 - Some packages may not have proper license metadata
+- For very large projects (500+ dependencies), the tool automatically limits dependency depth to 50 levels if the output exceeds buffer limits
 
 ## License
 
