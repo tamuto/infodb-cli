@@ -437,6 +437,51 @@ function findPythonDependencyPaths(
 }
 
 /**
+ * Get all packages reachable from the given root packages (transitive dependencies)
+ */
+export function getAllReachablePythonPackages(
+  rootPackages: Set<string>,
+  graph: PythonDependencyGraph,
+): Set<string> {
+  const reachable = new Set<string>();
+  const visited = new Set<string>();
+
+  function dfs(packageName: string) {
+    // Normalize for comparison
+    const normalized = packageName.toLowerCase().replace(/_/g, '-');
+    
+    if (visited.has(normalized)) {
+      return;
+    }
+    visited.add(normalized);
+    
+    // Find actual package name in graph (case-insensitive, handle _ vs -)
+    let actualName = packageName;
+    for (const pkgName of graph.packages.keys()) {
+      const pkgNormalized = pkgName.toLowerCase().replace(/_/g, '-');
+      if (pkgNormalized === normalized) {
+        actualName = pkgName;
+        reachable.add(pkgName);
+        break;
+      }
+    }
+
+    const deps = graph.dependencies.get(actualName);
+    if (deps) {
+      for (const dep of deps) {
+        dfs(dep);
+      }
+    }
+  }
+
+  for (const pkg of rootPackages) {
+    dfs(pkg);
+  }
+
+  return reachable;
+}
+
+/**
  * Get Python package info with dependency information
  */
 export async function getPythonPackageInfoWithDependencies(

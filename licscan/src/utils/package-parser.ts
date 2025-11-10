@@ -745,6 +745,38 @@ function findDependencyPaths(
 }
 
 /**
+ * Get all packages reachable from the given root packages (transitive dependencies)
+ */
+export function getAllReachablePackages(
+  rootPackages: Set<string>,
+  graph: DependencyGraph,
+): Set<string> {
+  const reachable = new Set<string>();
+  const visited = new Set<string>();
+
+  function dfs(packageName: string) {
+    if (visited.has(packageName)) {
+      return;
+    }
+    visited.add(packageName);
+    reachable.add(packageName);
+
+    const deps = graph.dependencies.get(packageName);
+    if (deps) {
+      for (const dep of deps) {
+        dfs(dep);
+      }
+    }
+  }
+
+  for (const pkg of rootPackages) {
+    dfs(pkg);
+  }
+
+  return reachable;
+}
+
+/**
  * Get package info with dependency information
  */
 export async function getPackageInfoWithDependencies(

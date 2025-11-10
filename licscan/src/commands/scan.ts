@@ -70,24 +70,29 @@ async function scanNpmDependencies(
   projectPath: string,
   includeDev: boolean,
 ): Promise<ScanResult | null> {
-  // Get only packages defined in package.json (not all installed packages)
+  // Get packages defined in package.json as entry points
   const packageJsonPath = path.join(projectPath, 'package.json');
-  const deps = await packageParser.getDependencies(packageJsonPath, includeDev);
+  const directDeps = await packageParser.getDependencies(packageJsonPath, includeDev);
 
-  if (deps.size === 0) {
+  if (directDeps.size === 0) {
     logger.warn('No npm dependencies found in package.json');
     return null;
   }
 
-  logger.info(`Found ${deps.size} npm dependencies defined in package.json`);
+  logger.info(`Found ${directDeps.size} direct npm dependencies in package.json`);
 
   // Build dependency graph
   logger.info('Building dependency graph...');
   const graph = await packageParser.buildDependencyGraph(projectPath);
 
+  // Get all packages reachable from direct dependencies (including transitive)
+  const directDepNames = new Set(directDeps.keys());
+  const allPackages = packageParser.getAllReachablePackages(directDepNames, graph);
+  logger.info(`Found ${allPackages.size} total packages (including transitive dependencies)`);
+
   const packages: ScanResult['packages'] = [];
 
-  for (const [name] of deps) {
+  for (const name of allPackages) {
     const info = await packageParser.getPackageInfoWithDependencies(name, projectPath, graph);
     if (info) {
       packages.push(info);
@@ -111,24 +116,29 @@ async function scanPythonDependencies(
   projectPath: string,
   includeDev: boolean,
 ): Promise<ScanResult | null> {
-  // Get only packages defined in pyproject.toml (not all installed packages)
+  // Get packages defined in pyproject.toml as entry points
   const pyprojectPath = path.join(projectPath, 'pyproject.toml');
-  const deps = await pyprojectParser.getDependencies(pyprojectPath, includeDev);
+  const directDeps = await pyprojectParser.getDependencies(pyprojectPath, includeDev);
 
-  if (deps.size === 0) {
+  if (directDeps.size === 0) {
     logger.warn('No Python dependencies found in pyproject.toml');
     return null;
   }
 
-  logger.info(`Found ${deps.size} Python dependencies defined in pyproject.toml`);
+  logger.info(`Found ${directDeps.size} direct Python dependencies in pyproject.toml`);
 
   // Build dependency graph
   logger.info('Building Python dependency graph...');
   const graph = await pyprojectParser.buildPythonDependencyGraph(projectPath);
 
+  // Get all packages reachable from direct dependencies (including transitive)
+  const directDepNames = new Set(Array.from(directDeps.keys()));
+  const allPackages = pyprojectParser.getAllReachablePythonPackages(directDepNames, graph);
+  logger.info(`Found ${allPackages.size} total packages (including transitive dependencies)`);
+
   const packages: ScanResult['packages'] = [];
 
-  for (const [name] of deps) {
+  for (const name of allPackages) {
     const info = await pyprojectParser.getPythonPackageInfoWithDependencies(name, projectPath, graph);
     if (info) {
       packages.push(info);
