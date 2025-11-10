@@ -101,14 +101,22 @@ async function fileExists(filePath: string): Promise<boolean> {
 // Cache for pnpm package paths
 const pnpmPathCache = new Map<string, string>();
 
+// Cache for package list result to avoid running the same command twice
+let cachedListResult: any = null;
+let cachedProjectRoot: string | null = null;
+
 /**
  * Get all installed npm packages (recursive dependencies included)
  */
 export async function getAllInstalledPackages(
   projectRoot: string,
 ): Promise<Map<string, string>> {
-  // Clear pnpm cache
-  pnpmPathCache.clear();
+  // Clear pnpm cache and list result cache if project root changed
+  if (cachedProjectRoot !== projectRoot) {
+    pnpmPathCache.clear();
+    cachedListResult = null;
+    cachedProjectRoot = projectRoot;
+  }
 
   // Detect package manager
   const packageManager = await detectPackageManager(projectRoot);
@@ -149,6 +157,8 @@ export async function getAllInstalledPackages(
     });
 
     const result = JSON.parse(stdout);
+    // Cache the result for buildDependencyGraph to reuse
+    cachedListResult = result;
     const deps = new Map<string, string>();
 
     // Recursively extract dependencies from list output
@@ -569,27 +579,37 @@ export async function buildDependencyGraph(
   };
 
   try {
-    // Detect package manager
-    const packageManager = await detectPackageManager(projectRoot);
-    const { exec } = await import('child_process');
-    const { promisify } = await import('util');
-    const execAsync = promisify(exec);
+    let result: any;
 
-    let command: string;
-    if (packageManager === 'pnpm') {
-      command = 'pnpm list --json --depth=999 --prod';
-    } else if (packageManager === 'yarn') {
-      command = 'yarn list --json --depth=999';
+    // Use cached result if available (from getAllInstalledPackages)
+    if (cachedListResult && cachedProjectRoot === projectRoot) {
+      result = cachedListResult;
+      logger.info('Using cached dependency list for graph construction');
     } else {
-      command = 'npm list --json --all --depth=999';
+      // Fallback: run command again (shouldn't normally happen)
+      logger.info('Fetching dependency list for graph construction...');
+      const packageManager = await detectPackageManager(projectRoot);
+      const { exec } = await import('child_process');
+      const { promisify } = await import('util');
+      const execAsync = promisify(exec);
+
+      let command: string;
+      if (packageManager === 'pnpm') {
+        command = 'pnpm list --json --depth=999 --prod';
+      } else if (packageManager === 'yarn') {
+        command = 'yarn list --json --depth=999';
+      } else {
+        command = 'npm list --json --all --depth=999';
+      }
+
+      const { stdout } = await execAsync(command, {
+        cwd: projectRoot,
+        maxBuffer: 1024 * 1024 * 50,
+      });
+
+      result = JSON.parse(stdout);
+      cachedListResult = result;
     }
-
-    const { stdout } = await execAsync(command, {
-      cwd: projectRoot,
-      maxBuffer: 1024 * 1024 * 50,
-    });
-
-    const result = JSON.parse(stdout);
 
     // Get root package name
     const rootPkg = await parsePackageJson(path.join(projectRoot, 'package.json'));
