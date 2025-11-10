@@ -1,30 +1,38 @@
 # License Report
 
 ## Table of Contents
+{{#if npmPackages.length}}
 
+### NPM Packages
 {{#each npmPackages}}
 - [{{name}}@{{version}}](#{{anchor name version}}) - {{license}}
 {{/each}}
+{{/if}}
+{{#if pythonPackages.length}}
+
+### Python Packages
 {{#each pythonPackages}}
 - [{{name}}@{{version}}](#{{anchor name version}}) - {{license}}
 {{/each}}
+{{/if}}
 
 ---
+{{#if npmPackages.length}}
 
 ## NPM Packages
 
 {{#each npmPackages}}
 ### {{name}}@{{version}}
 
-**License:** {{license}}
+- **License:** {{license}}
 {{#if author}}
-**Author:** {{author}}
+- **Author:** {{author}}
 {{/if}}
 {{#if homepage}}
-**Homepage:** {{homepage}}
+- **Homepage:** {{homepage}}
 {{/if}}
 {{#if repository}}
-**Repository:** {{repository}}
+- **Repository:** {{repository}}
 {{/if}}
 
 {{#if copyright}}
@@ -44,18 +52,20 @@
 ---
 
 {{/each}}
+{{/if}}
+{{#if pythonPackages.length}}
 
 ## Python Packages
 
 {{#each pythonPackages}}
 ### {{name}}@{{version}}
 
-**License:** {{license}}
+- **License:** {{license}}
 {{#if author}}
-**Author:** {{author}}
+- **Author:** {{author}}
 {{/if}}
 {{#if homepage}}
-**Homepage:** {{homepage}}
+- **Homepage:** {{homepage}}
 {{/if}}
 
 {{#if copyright}}
@@ -75,3 +85,4 @@
 ---
 
 {{/each}}
+{{/if}}
