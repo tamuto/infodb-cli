@@ -34,6 +34,9 @@
 {{#if repository}}
 - **Repository:** {{repository}}
 {{/if}}
+{{#if dependencyPaths}}
+- **Dependency path:** {{formatDepPath dependencyPaths}}
+{{/if}}
 
 {{#if copyright}}
 **Copyright:**
@@ -66,6 +69,9 @@
 {{/if}}
 {{#if homepage}}
 - **Homepage:** {{homepage}}
+{{/if}}
+{{#if dependencyPaths}}
+- **Dependency path:** {{formatDepPath dependencyPaths}}
 {{/if}}
 
 {{#if copyright}}

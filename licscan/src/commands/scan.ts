@@ -15,16 +15,7 @@ export interface ScanOptions {
 
 export interface ScanResult {
   type: 'npm' | 'python';
-  packages: Array<{
-    name: string;
-    version: string;
-    license?: string;
-    copyright?: string;
-    licenseText?: string;
-    author?: string;
-    repository?: string;
-    homepage?: string;
-  }>;
+  packages: packageParser.DependencyInfo[];
 }
 
 export async function scanCommand(projectPath: string, options: ScanOptions = {}) {
@@ -89,10 +80,14 @@ async function scanNpmDependencies(
 
   logger.info(`Found ${deps.size} npm dependencies (including nested)`);
 
+  // Build dependency graph
+  logger.info('Building dependency graph...');
+  const graph = await packageParser.buildDependencyGraph(projectPath);
+
   const packages: ScanResult['packages'] = [];
 
   for (const [name] of deps) {
-    const info = await packageParser.getPackageInfo(name, projectPath);
+    const info = await packageParser.getPackageInfoWithDependencies(name, projectPath, graph);
     if (info) {
       packages.push(info);
     } else {
@@ -200,6 +195,14 @@ function formatText(results: ScanResult[]): string {
         output += `Repository: ${pkg.repository}\n`;
       }
 
+      if (pkg.dependencyPaths && pkg.dependencyPaths.length > 0) {
+        const shortestPath = pkg.dependencyPaths.reduce(
+          (shortest: string[], current: string[]) =>
+            current.length < shortest.length ? current : shortest
+        );
+        output += `Dependency path: ${shortestPath.join(' → ')}\n`;
+      }
+
       if (pkg.copyright) {
         output += `Copyright:\n`;
         const copyrightLines = pkg.copyright.split('\n');
@@ -230,10 +233,24 @@ function formatJson(results: ScanResult[]): string {
 }
 
 function formatCsv(results: ScanResult[]): string {
-  let csv = 'Type,Name,Version,License,Author,Homepage,Repository,Copyright,LicenseText\n';
+  let csv =
+    'Type,Name,Version,License,Author,Homepage,Repository,RequiredBy,DependencyPath,Copyright,LicenseText\n';
 
   for (const result of results) {
     for (const pkg of result.packages) {
+      // Format requiredBy as comma-separated list
+      const requiredBy = pkg.requiredBy ? pkg.requiredBy.join('; ') : '';
+
+      // Format dependency path (use shortest path)
+      let dependencyPath = '';
+      if (pkg.dependencyPaths && pkg.dependencyPaths.length > 0) {
+        const shortestPath = pkg.dependencyPaths.reduce(
+          (shortest: string[], current: string[]) =>
+            current.length < shortest.length ? current : shortest
+        );
+        dependencyPath = shortestPath.join(' → ');
+      }
+
       const row = [
         result.type,
         pkg.name,
@@ -242,6 +259,8 @@ function formatCsv(results: ScanResult[]): string {
         pkg.author || '',
         pkg.homepage || '',
         pkg.repository || '',
+        requiredBy,
+        dependencyPath,
         (pkg.copyright || '').replace(/\n/g, ' '),
         (pkg.licenseText || '').replace(/\n/g, ' '),
       ];
@@ -263,6 +282,18 @@ async function formatMarkdown(results: ScanResult[]): Promise<string> {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric sequences with single hyphen
       .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
+  });
+
+  // Register helper for formatting dependency paths
+  Handlebars.registerHelper('formatDepPath', (paths: string[][] | undefined) => {
+    if (!paths || paths.length === 0) {
+      return '';
+    }
+    // Use the shortest path (or first path if all same length)
+    const shortestPath = paths.reduce((shortest, current) =>
+      current.length < shortest.length ? current : shortest
+    );
+    return shortestPath.join(' → ');
   });
 
   // Load template
