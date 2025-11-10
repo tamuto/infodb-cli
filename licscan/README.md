@@ -186,35 +186,35 @@ Copyright (c) 2011 TJ Holowaychuk <tj@vision-media.ca>
 ## How It Works
 
 ### For npm packages (package.json):
-1. Reads `package.json` to get **only the packages defined** in dependencies (not all nested dependencies)
+1. Reads `package.json` to get the packages defined in dependencies (entry points)
 2. Detects package manager (npm, pnpm, or yarn)
-3. Runs `pnpm list --prod` / `npm list` / `yarn list` to build dependency graph
-4. Tracks relationships between packages (which packages depend on which)
-5. For each defined dependency, reads package.json and LICENSE files
+3. Runs `pnpm list --prod` / `npm list` / `yarn list` to build full dependency graph
+4. Extracts all packages reachable from the defined dependencies (includes **transitive dependencies**)
+5. For each package (direct and transitive), reads package.json and LICENSE files
 6. Extracts license information from package metadata
 7. Extracts copyright information from LICENSE files
 8. Calculates dependency paths from root to each package
 9. Compiles all information with dependency tracking into structured output
 
-**Note:** The tool scans only packages explicitly defined in package.json, not all transitive dependencies. The dependency graph is used to provide `requiredBy` and `dependencyPaths` information.
+**Note:** The tool scans packages defined in package.json and **all their transitive dependencies**. For example, if package.json defines `react`, the output will include `react`, `loose-envify` (dependency of react), `js-tokens` (dependency of loose-envify), etc.
 
 ### For Python packages (pyproject.toml):
 1. Reads `pyproject.toml` (supports both Poetry and PEP 621 formats)
-2. Extracts **only the packages defined** in dependencies (not all installed packages)
+2. Extracts the packages defined in dependencies (entry points)
 3. **Detects Python environment**:
    - Checks for `uv.lock` (uv projects)
    - Checks for `poetry.lock` (Poetry projects)
    - Checks for `VIRTUAL_ENV` environment variable (venv)
    - Checks for common venv directories (`venv`, `.venv`, `env`, `.env`)
    - Falls back to system Python
-4. Uses `pip show` to build dependency graph and track relationships
-5. Tracks which packages depend on each defined package (`requiredBy`)
-6. Calculates dependency paths from root project to each package
-7. Uses appropriate command prefix (`uv run`, `poetry run`, or system)
-8. Attempts to locate and read LICENSE files from installed packages using Python's `importlib.metadata`
+4. Uses `pip show` to build full dependency graph and track relationships
+5. Extracts all packages reachable from the defined dependencies (includes **transitive dependencies**)
+6. For each package, attempts to locate and read LICENSE files using Python's `importlib.metadata`
+7. Calculates dependency paths from root project to each package
+8. Uses appropriate command prefix (`uv run`, `poetry run`, or system)
 9. Compiles all information with dependency tracking into structured output
 
-**Note:** Similar to npm packages, the tool scans only packages explicitly defined in pyproject.toml dependencies, not all installed packages in the environment.
+**Note:** The tool scans packages defined in pyproject.toml and **all their transitive dependencies**. For example, if pyproject.toml defines `graphql-py`, the output will include `graphql-py` and `ply` (dependency of graphql-py).
 
 ## Development
 
