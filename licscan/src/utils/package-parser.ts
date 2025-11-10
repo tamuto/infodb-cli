@@ -129,19 +129,46 @@ export async function getAllInstalledPackages(
     const execAsync = promisify(exec);
 
     let command: string;
+    let depth = 999;
+
+    // Try with full depth first
     if (packageManager === 'pnpm') {
-      command = 'pnpm list --json --depth=999 --prod';
+      command = `pnpm list --json --depth=${depth} --prod`;
     } else if (packageManager === 'yarn') {
-      command = 'yarn list --json --depth=999';
+      command = `yarn list --json --depth=${depth}`;
     } else {
-      command = 'npm list --json --all --depth=999';
+      command = `npm list --json --all --depth=${depth}`;
     }
 
-    // Use package manager list command to get all installed packages
-    const { stdout } = await execAsync(command, {
-      cwd: projectRoot,
-      maxBuffer: 1024 * 1024 * 100, // 100MB buffer for large dependency trees
-    });
+    let stdout: string;
+    try {
+      // Use package manager list command to get all installed packages
+      const result = await execAsync(command, {
+        cwd: projectRoot,
+        maxBuffer: 1024 * 1024 * 500, // 500MB buffer for very large dependency trees
+      });
+      stdout = result.stdout;
+    } catch (execError: any) {
+      // If still exceeds buffer with depth=999, try with limited depth
+      if (execError.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' && depth === 999) {
+        logger.warn('Output too large with depth=999, retrying with depth=50...');
+        depth = 50;
+        if (packageManager === 'pnpm') {
+          command = `pnpm list --json --depth=${depth} --prod`;
+        } else if (packageManager === 'yarn') {
+          command = `yarn list --json --depth=${depth}`;
+        } else {
+          command = `npm list --json --all --depth=${depth}`;
+        }
+        const retryResult = await execAsync(command, {
+          cwd: projectRoot,
+          maxBuffer: 1024 * 1024 * 500,
+        });
+        stdout = retryResult.stdout;
+      } else {
+        throw execError;
+      }
+    }
 
     const result = JSON.parse(stdout);
     // Cache the result for buildDependencyGraph to reuse
@@ -581,18 +608,45 @@ export async function buildDependencyGraph(
       const execAsync = promisify(exec);
 
       let command: string;
+      let depth = 999;
+
+      // Try with full depth first
       if (packageManager === 'pnpm') {
-        command = 'pnpm list --json --depth=999 --prod';
+        command = `pnpm list --json --depth=${depth} --prod`;
       } else if (packageManager === 'yarn') {
-        command = 'yarn list --json --depth=999';
+        command = `yarn list --json --depth=${depth}`;
       } else {
-        command = 'npm list --json --all --depth=999';
+        command = `npm list --json --all --depth=${depth}`;
       }
 
-      const { stdout } = await execAsync(command, {
-        cwd: projectRoot,
-        maxBuffer: 1024 * 1024 * 100, // 100MB buffer for large dependency trees
-      });
+      let stdout: string;
+      try {
+        const execResult = await execAsync(command, {
+          cwd: projectRoot,
+          maxBuffer: 1024 * 1024 * 500, // 500MB buffer for very large dependency trees
+        });
+        stdout = execResult.stdout;
+      } catch (execError: any) {
+        // If still exceeds buffer with depth=999, try with limited depth
+        if (execError.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' && depth === 999) {
+          logger.warn('Output too large with depth=999, retrying with depth=50...');
+          depth = 50;
+          if (packageManager === 'pnpm') {
+            command = `pnpm list --json --depth=${depth} --prod`;
+          } else if (packageManager === 'yarn') {
+            command = `yarn list --json --depth=${depth}`;
+          } else {
+            command = `npm list --json --all --depth=${depth}`;
+          }
+          const retryResult = await execAsync(command, {
+            cwd: projectRoot,
+            maxBuffer: 1024 * 1024 * 500,
+          });
+          stdout = retryResult.stdout;
+        } else {
+          throw execError;
+        }
+      }
 
       result = JSON.parse(stdout);
       cachedListResult = result;
