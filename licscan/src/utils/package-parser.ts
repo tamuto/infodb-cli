@@ -22,6 +22,14 @@ export interface DependencyInfo {
   author?: string;
   repository?: string;
   homepage?: string;
+  requiredBy?: string[]; // Direct parent packages that depend on this
+  dependencyPaths?: string[][]; // Paths from root to this package
+}
+
+export interface DependencyGraph {
+  packages: Map<string, string>; // name -> version
+  requiredBy: Map<string, Set<string>>; // package -> set of packages that require it
+  dependencies: Map<string, Set<string>>; // package -> set of its dependencies
 }
 
 export async function parsePackageJson(packagePath: string): Promise<PackageInfo | null> {
@@ -546,4 +554,160 @@ async function extractCopyright(packageDir: string): Promise<string | undefined>
   }
 
   return undefined;
+}
+
+/**
+ * Build dependency graph from npm/pnpm/yarn list output
+ */
+export async function buildDependencyGraph(
+  projectRoot: string,
+): Promise<DependencyGraph> {
+  const graph: DependencyGraph = {
+    packages: new Map(),
+    requiredBy: new Map(),
+    dependencies: new Map(),
+  };
+
+  try {
+    // Detect package manager
+    const packageManager = await detectPackageManager(projectRoot);
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+
+    let command: string;
+    if (packageManager === 'pnpm') {
+      command = 'pnpm list --json --depth=999 --prod';
+    } else if (packageManager === 'yarn') {
+      command = 'yarn list --json --depth=999';
+    } else {
+      command = 'npm list --json --all --depth=999';
+    }
+
+    const { stdout } = await execAsync(command, {
+      cwd: projectRoot,
+      maxBuffer: 1024 * 1024 * 50,
+    });
+
+    const result = JSON.parse(stdout);
+
+    // Get root package name
+    const rootPkg = await parsePackageJson(path.join(projectRoot, 'package.json'));
+    const rootName = rootPkg?.name || 'root';
+
+    // Recursively build graph
+    function buildGraph(obj: any, parentName: string = rootName) {
+      if (obj.dependencies) {
+        for (const [name, info] of Object.entries(obj.dependencies)) {
+          const depInfo = info as any;
+          if (depInfo.version) {
+            // Add package
+            graph.packages.set(name, depInfo.version);
+
+            // Track who requires this package
+            if (!graph.requiredBy.has(name)) {
+              graph.requiredBy.set(name, new Set());
+            }
+            graph.requiredBy.get(name)!.add(parentName);
+
+            // Track dependencies of parent
+            if (!graph.dependencies.has(parentName)) {
+              graph.dependencies.set(parentName, new Set());
+            }
+            graph.dependencies.get(parentName)!.add(name);
+
+            // Recurse
+            if (depInfo.dependencies) {
+              buildGraph(depInfo, name);
+            }
+          }
+        }
+      }
+    }
+
+    buildGraph(result, rootName);
+
+    // Handle pnpm array format
+    if (graph.packages.size === 0 && Array.isArray(result)) {
+      for (const pkg of result) {
+        if (pkg.name && pkg.version) {
+          graph.packages.set(pkg.name, pkg.version);
+          // For pnpm, we need to parse dependencies differently
+          if (pkg.dependencies) {
+            buildGraph(pkg, rootName);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    logger.warn(`Could not build dependency graph: ${error}`);
+  }
+
+  return graph;
+}
+
+/**
+ * Find all paths from root to a given package in the dependency graph
+ */
+function findDependencyPaths(
+  targetPackage: string,
+  graph: DependencyGraph,
+  rootName: string,
+): string[][] {
+  const paths: string[][] = [];
+  const visited = new Set<string>();
+
+  function dfs(currentPackage: string, currentPath: string[]) {
+    if (currentPackage === targetPackage) {
+      paths.push([...currentPath, currentPackage]);
+      return;
+    }
+
+    if (visited.has(currentPackage)) {
+      return; // Avoid cycles
+    }
+
+    visited.add(currentPackage);
+
+    const deps = graph.dependencies.get(currentPackage);
+    if (deps) {
+      for (const dep of deps) {
+        dfs(dep, [...currentPath, currentPackage]);
+      }
+    }
+
+    visited.delete(currentPackage);
+  }
+
+  dfs(rootName, []);
+  return paths;
+}
+
+/**
+ * Get package info with dependency information
+ */
+export async function getPackageInfoWithDependencies(
+  packageName: string,
+  projectRoot: string,
+  graph: DependencyGraph,
+): Promise<DependencyInfo | null> {
+  const baseInfo = await getPackageInfo(packageName, projectRoot);
+  if (!baseInfo) {
+    return null;
+  }
+
+  // Add dependency information
+  const requiredBy = Array.from(graph.requiredBy.get(packageName) || []);
+
+  // Get root package name
+  const rootPkg = await parsePackageJson(path.join(projectRoot, 'package.json'));
+  const rootName = rootPkg?.name || 'root';
+
+  const dependencyPaths = findDependencyPaths(packageName, graph, rootName);
+
+  return {
+    ...baseInfo,
+    requiredBy: requiredBy.length > 0 ? requiredBy : undefined,
+    dependencyPaths: dependencyPaths.length > 0 ? dependencyPaths : undefined,
+  };
 }
