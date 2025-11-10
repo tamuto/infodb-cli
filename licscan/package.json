@@ -1,6 +1,6 @@
 {
   "name": "@infodb/licscan",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "License and Copyright Scanner for package.json and pyproject.toml",
   "main": "dist/index.js",
   "bin": {

@@ -257,7 +257,12 @@ async function formatMarkdown(results: ScanResult[]): Promise<string> {
   // Register Handlebars helper for generating anchor links
   Handlebars.registerHelper('anchor', (name: string, version: string) => {
     // Create a URL-safe anchor from package name and version
-    return `${name}-${version}`.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    // Format: name@version, then convert to lowercase and replace non-alphanumeric chars with hyphens
+    const fullName = `${name}@${version}`;
+    return fullName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric sequences with single hyphen
+      .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
   });
 
   // Load template
@@ -276,6 +281,11 @@ async function formatMarkdown(results: ScanResult[]): Promise<string> {
       pythonPackages.push(...result.packages);
     }
   }
+
+  // Sort packages alphabetically by name
+  const sortPackages = (a: any, b: any) => a.name.localeCompare(b.name);
+  npmPackages.sort(sortPackages);
+  pythonPackages.sort(sortPackages);
 
   // Render template with data
   const output = template({
