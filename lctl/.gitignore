@@ -35,6 +35,18 @@ logs
 *.temp
 *-deploy.zip
 
+# Terraform artifacts
+.terraform/
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+sample/terraform/.terraform.lock.hcl
+sample/test_lambda.zip
+__pycache__/
+**/__pycache__/
+*.pyc
+
 # Coverage directory used by tools like istanbul
 coverage/
 *.lcov
