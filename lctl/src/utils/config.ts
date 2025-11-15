@@ -2,6 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as yaml from 'yaml';
 import { Logger } from './logger';
+import { substituteEnvVariables } from './env';
 
 export interface LambdaConfig {
   function_name?: string;
@@ -69,7 +70,7 @@ export class ConfigManager {
       const yamlContent = await fs.readFile(yamlPath, 'utf-8');
       const parsedYaml = yaml.parse(yamlContent);
       this.logger.verbose(`Parsed YAML before substitution:`, parsedYaml);
-      yamlConfig = this.substituteVariables(parsedYaml);
+      yamlConfig = substituteEnvVariables(parsedYaml);
       this.logger.verbose(`Loaded YAML config from: ${yamlPath}`);
       this.logger.verbose(`YAML config after substitution:`, yamlConfig);
     } catch (error) {
@@ -118,34 +119,5 @@ export class ConfigManager {
     }
 
     return config;
-  }
-
-  private substituteVariables(obj: any): any {
-    if (typeof obj === 'string') {
-      // Replace ${ENV_VAR} with environment variables
-      const result = obj.replace(/\$\{([^}]+)\}/g, (_, envVar) => {
-        const envValue = process.env[envVar];
-        if (envValue === undefined) {
-          throw new Error(`Environment variable ${envVar} is not defined`);
-        }
-        return envValue;
-      });
-
-      return result;
-    }
-
-    if (Array.isArray(obj)) {
-      return obj.map(item => this.substituteVariables(item));
-    }
-
-    if (obj && typeof obj === 'object') {
-      const result: any = {};
-      for (const [key, value] of Object.entries(obj)) {
-        result[key] = this.substituteVariables(value);
-      }
-      return result;
-    }
-
-    return obj;
   }
 }

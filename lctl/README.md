@@ -167,6 +167,60 @@ pnpx @infodb/lctl info <config-name> [オプション]
 pnpx @infodb/lctl info my-function
 ```
 
+### 6. gen-routes - Terraform定義から routes.json を生成
+```bash
+pnpx @infodb/lctl gen-routes <plan-json> [オプション]
+```
+
+**入力:**
+- `plan-json`: `terraform show -json` を保存したファイルパス
+
+**オプション:**
+- `--output <file>`: 生成する `routes.json` の出力先（デフォルト: `routes.json`）
+- `--verbose`: 解析過程を詳細表示
+
+**機能:**
+- `aws_apigatewayv2_route` / `aws_apigatewayv2_integration` リソースを走査し、`routeKey` と Lambda の紐付けを抽出
+- Integration URI から Lambda 関数名を解析して `{ "method": "GET", "path": "/foo", "lambda": "lambda_foo" }` 形式に整形
+- 紐付けが不完全な場合はエラー終了し、問題箇所を表示
+
+**例:**
+```bash
+terraform show -json tfplan.out > tfplan.json
+pnpx @infodb/lctl gen-routes tfplan.json --output routes.json
+```
+
+### 7. serve - HTTP → Lambda ローカルサーバを起動
+```bash
+pnpx @infodb/lctl serve [オプション]
+```
+
+**オプション:**
+- `--routes <file>`: `routes.json` のパス（デフォルト: `routes.json`）
+- `--port <port>`: 起動ポート（デフォルト: `3000`）
+- `--config-dir <dir>`: `configs/` を別パスに変更したい場合に指定
+- `--functions-dir <dir>`: Lambda ソースが配置されたディレクトリ（デフォルト: `functions/`）
+- `--verbose`: ルーティングや Lambda 実行ログを詳細表示
+
+**機能:**
+- `routes.json` と YAML 設定からローカルの Lambda ハンドラーを特定
+- Express ベースの HTTP サーバを起動し、API Gateway HTTP API v2 のイベント（`version`, `routeKey`, `rawPath`, `headers`, `body`, `requestContext.http`）を再現
+- Node.js ランタイムは `require` で直接呼び出し、Python ランタイムは `python3` サブプロセス経由で `handler(event, context)` を実行
+- Lambda の戻り値 `{ statusCode, headers, body }` を HTTP レスポンスへ変換
+
+**利用例:**
+```bash
+# 1. Terraform から routes.json を生成
+pnpx @infodb/lctl gen-routes tfplan.json
+
+# 2. ローカル HTTP サーバを起動
+pnpx @infodb/lctl serve --routes routes.json --port 4000
+```
+
+**注意:**
+- `routes.json` に存在しない Lambda、または `handler` がエクスポートされていない場合は起動時/実行時に例外となります。
+- Python モジュールは `functions/` を `PYTHONPATH` に追加してインポートします。依存モジュールは同ディレクトリに配置してください。
+
 ## 使用シナリオ
 
 ### ローカル開発
