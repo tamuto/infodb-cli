@@ -1,0 +1,38 @@
+{
+  "name": "@infodb/tfme",
+  "version": "0.1.0",
+  "description": "Terraform schema to YAML conversion and documentation download",
+  "main": "dist/index.js",
+  "bin": {
+    "tfme": "./bin/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js"
+  },
+  "keywords": [
+    "terraform",
+    "schema",
+    "yaml",
+    "cli"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^12.1.0",
+    "yaml": "^2.6.1",
+    "chalk": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  },
+  "files": [
+    "dist/**/*",
+    "bin/**/*"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
