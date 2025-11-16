@@ -1,64 +1,65 @@
-import { SchemaParser } from '../parsers/schema-parser';
-import { RegistryClient } from '../utils/registry-client';
+import { SchemaFetcher } from '../utils/schema-fetcher';
+import { RegistryClient, ProviderVersion } from '../utils/registry-client';
 
 export interface DownloadOptions {
-  provider?: string;
-  resource?: string;
+  resource: string;
   output: string;
+  namespace?: string;
   version?: string;
 }
 
-export async function downloadCommand(jsonPath: string, options: DownloadOptions): Promise<void> {
+export async function downloadCommand(options: DownloadOptions): Promise<void> {
+  // Auto-detect provider from resource name
+  const provider = inferProviderFromResource(options.resource);
+
   console.log('Starting documentation download...');
+  console.log(`Provider: ${provider}`);
 
-  const parser = new SchemaParser(jsonPath);
-  const client = new RegistryClient();
+  try {
+    // Get provider info from schema
+    const fetcher = new SchemaFetcher();
+    const schemaJson = await fetcher.getSchema(provider);
 
-  const providers = parser.getProviders();
-  console.log(`Found ${providers.length} provider(s): ${providers.join(', ')}`);
+    const schema = JSON.parse(schemaJson);
 
-  // Filter by provider if specified
-  const targetProviders = options.provider
-    ? providers.filter((p) => p.includes(options.provider!))
-    : providers;
+    // Extract provider info from schema
+    const providerKeys = Object.keys(schema.provider_schemas || {});
+    if (providerKeys.length === 0) {
+      throw new Error('No providers found in schema');
+    }
 
-  if (targetProviders.length === 0) {
-    console.error(`No providers found matching: ${options.provider}`);
-    return;
-  }
+    // Use first provider or match by name
+    const providerKey = providerKeys.find(k => k.includes(provider)) || providerKeys[0];
+    const [, namespace, name] = providerKey.match(/^(?:registry\.terraform\.io\/)?([^\/]+)\/(.+)$/) || [];
 
-  for (const providerName of targetProviders) {
-    console.log(`\nProcessing provider: ${providerName}`);
-    const providerInfo = parser.getProviderInfo(providerName);
-
-    // Use specified version or 'latest'
-    const version = options.version || 'latest';
-    const providerVersion = {
-      ...providerInfo,
-      version,
+    const providerVersion: ProviderVersion = {
+      namespace: options.namespace || namespace || 'hashicorp',
+      name: provider,
+      version: options.version || 'latest',
     };
 
-    if (options.resource) {
-      // Download single resource documentation
-      const outputPath = `${options.output}/${providerInfo.name}/resources/${options.resource}.md`;
-      console.log(`Downloading documentation for ${options.resource}...`);
+    console.log(`Provider: ${providerVersion.namespace}/${providerVersion.name}@${providerVersion.version}`);
 
-      try {
-        await client.downloadResourceDoc(providerVersion, options.resource, outputPath);
-        console.log(`Downloaded: ${outputPath}`);
-      } catch (error) {
-        console.error(`Error:`, error);
-      }
-    } else {
-      // Download all resource documentation
-      const resources = parser.getResources(providerName);
-      const resourceNames = Object.keys(resources);
-      console.log(`Found ${resourceNames.length} resource(s)`);
+    // Download documentation
+    const client = new RegistryClient();
+    const outputPath = `${options.output}/${options.resource}.md`;
 
-      await client.downloadAllResourceDocs(providerVersion, resourceNames, options.output);
-      console.log(`Downloaded ${resourceNames.length} files to: ${options.output}/${providerInfo.name}/resources/`);
-    }
+    console.log(`Downloading documentation for ${options.resource}...`);
+    await client.downloadResourceDoc(providerVersion, options.resource, outputPath);
+
+    console.log(`✅ Downloaded: ${outputPath}`);
+    console.log(`\nDownload completed!`);
+  } catch (error) {
+    console.error(`Download failed:`, error);
+    throw error;
   }
+}
 
-  console.log('\nDownload completed!');
+function inferProviderFromResource(resourceName: string): string {
+  // Extract provider name from resource name (e.g., "aws_vpc" -> "aws")
+  const parts = resourceName.split('_');
+  if (parts.length < 2) {
+    throw new Error(`Invalid resource name format: ${resourceName}. Expected format: {provider}_{resource_type}`);
+  }
+  return parts[0];
 }

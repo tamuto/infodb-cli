@@ -4,11 +4,11 @@
 
 ### 基本情報
 - **プロジェクト名**: `@infodb/tfme`
-- **バージョン**: 0.1.0
+- **バージョン**: 0.2.0
 - **ライセンス**: MIT
 
 ### ツールの目的
-Terraform provider schemaをYAML形式に変換し、Terraform RegistryからリソースのドキュメントをダウンロードするCLIツール。多言語対応のドキュメント管理を支援。
+Terraform provider schemaから指定したリソースのスキーマをYAML形式に変換し、Terraform Registry APIからリソースのMarkdownドキュメントをダウンロードするCLIツール。プロバイダ名はリソース名から自動推測。
 
 ## 技術仕様
 
@@ -17,25 +17,23 @@ Terraform provider schemaをYAML形式に変換し、Terraform Registryからリ
 - **ランタイム**: Node.js
 - **CLI Framework**: Commander.js 12.1.0
 - **YAML処理**: yaml 2.6.1
-- **出力**: Chalk 5.3.0
+- **HTTP Client**: Built-in fetch API
 
 ### 主要コンポーネント
 
 #### 1. コマンド (`src/commands/`)
-- `export.ts`: Provider schemaをYAMLに変換
-- `download.ts`: Terraform Registryからドキュメントダウンロード
+- `export.ts`: 指定リソースのschemaをYAMLに変換（単純変換、加工なし）、プロバイダ名自動推測
+- `download.ts`: Terraform Registry APIからMarkdownドキュメントダウンロード、プロバイダ名自動推測
 
-#### 2. パーサー (`src/parsers/`)
-- `schema-parser.ts`: Terraform provider schema JSONのパース
+#### 2. ユーティリティ (`src/utils/`)
+- `converter.ts`: JSON → YAML単純変換
+- `schema-fetcher.ts`: GitHubからのスキーマ取得＋ローカルキャッシュ
+- `registry-client.ts`: Terraform Registry API v2クライアント
 
-#### 3. ジェネレーター (`src/generators/`)
-- `yaml-generator.ts`: YAML出力の生成（単一ファイル/分割ファイル）
-
-#### 4. ユーティリティ (`src/utils/`)
-- `registry-client.ts`: Terraform RegistryへのHTTPリクエスト
-
-#### 5. 型定義 (`src/types/`)
-- `schema.ts`: Terraform schema型とYAML出力型の定義
+#### 3. スキーマ管理 (`schemas/`)
+- `terraform/{provider}/`: プロバイダごとのTerraform設定
+- `providers/`: 生成されたスキーマJSONファイル
+- `scripts/generate-schemas.sh`: スキーマ生成スクリプト
 
 ## プロジェクト構造
 
@@ -47,71 +45,92 @@ tfme/
 ├── CLAUDE.md
 ├── bin/
 │   └── cli.js               # CLIエントリーポイント
-└── src/
-    ├── index.ts              # メインエントリーポイント
-    ├── commands/
-    │   ├── export.ts         # YAML export コマンド
-    │   └── download.ts       # ドキュメントダウンロードコマンド
-    ├── parsers/
-    │   └── schema-parser.ts  # Schema JSONパーサー
-    ├── generators/
-    │   └── yaml-generator.ts # YAML生成
-    ├── utils/
-    │   └── registry-client.ts # Registry API クライアント
-    └── types/
-        └── schema.ts         # 型定義
+├── src/
+│   ├── index.ts              # メインエントリーポイント
+│   ├── commands/
+│   │   ├── export.ts         # YAML export コマンド
+│   │   └── download.ts       # ドキュメントダウンロードコマンド
+│   └── utils/
+│       ├── converter.ts      # JSON→YAML変換
+│       ├── schema-fetcher.ts # スキーマ取得＋キャッシュ
+│       └── registry-client.ts # Registry API クライアント
+└── schemas/
+    ├── terraform/
+    │   ├── aws/provider.tf
+    │   ├── azurerm/provider.tf
+    │   └── google/provider.tf
+    ├── providers/
+    │   ├── aws.json          # 生成されたスキーマ
+    │   ├── azurerm.json
+    │   └── google.json
+    └── scripts/
+        └── generate-schemas.sh
 ```
 
 ## 機能詳細
 
 ### 1. Export コマンド
 
-Terraform provider schemaをYAML形式に変換します。
+指定したリソースのschemaをYAML形式に変換します。
 
-**基本機能**:
-- 全プロバイダーのエクスポート
-- 特定プロバイダーのフィルタリング
-- 特定リソースのフィルタリング
-- 単一ファイル出力
-- 分割ファイル出力（リソースごと）
+**処理フロー**:
+1. リソース名からプロバイダ名を自動推測（例: `aws_vpc` → `aws`）
+2. スキーマ取得（GitHub/キャッシュ または ローカルファイル）
+3. 指定リソースのschemaを抽出
+4. JSON → YAML 単純変換（データ加工なし）
+5. ファイル出力（`{resource}.yaml`）
 
-**出力形式**:
-- プロバイダー情報（namespace, name, version）
-- リソース定義
-- 属性情報（type, required, optional, etc.）
-- ブロック定義（nested構造）
-- 多言語対応（en_us, ja_jp）
+**プロバイダ名自動推測**:
+- リソース名のプレフィックスから自動判定（`aws_vpc` → `aws`）
+- Terraformの命名規則により100%推測可能
+
+**GitHubリポジトリ統合**:
+- URL: `https://raw.githubusercontent.com/tamuto/infodb-cli/main/tfme/schemas/providers/{provider}.json`
+- ローカルキャッシュ: `~/.tfme/cache/{provider}.json`
+- キャッシュクリア: `--clear-cache` フラグ
 
 ### 2. Download コマンド
 
-Terraform Registryから公式ドキュメントをダウンロードします。
+指定したリソースのMarkdownドキュメントをTerraform Registry APIからダウンロードします。
 
-**基本機能**:
-- 全リソースのドキュメントダウンロード
-- 特定プロバイダーのフィルタリング
-- 特定リソースのフィルタリング
-- バージョン指定（デフォルト: latest）
+**処理フロー**:
+1. リソース名からプロバイダ名を自動推測（例: `aws_vpc` → `aws`）
+2. プロバイダーバージョンID取得
+   - API: `/v2/providers/{namespace}/{name}/provider-versions`
+3. ドキュメント一覧取得（ページネーション対応）
+   - API: `/v2/provider-docs?filter[provider-version]={id}&filter[category]={category}`
+4. 個別ドキュメントコンテンツ取得
+   - API: `/v2/provider-docs/{doc_id}`
+5. Markdown保存（`{resource}.md`）
 
-**ダウンロード先**:
-- Terraform Registry: `https://registry.terraform.io`
-- パス形式: `/v1/providers/{namespace}/{name}/{version}/docs`
+**プロバイダ名自動推測**:
+- リソース名のプレフィックスから自動判定（`aws_vpc` → `aws`）
+- Terraformの命名規則により100%推測可能
+
+**レート制限対応**:
+- リクエスト間隔: 100ms
+- ページ間隔: 500ms
+
+**リソース名処理**:
+- 入力: `aws_vpc`
+- slug変換: `vpc` (プロバイダープレフィックス除去)
 
 ## 開発コマンド
 
 ```bash
 # 依存関係インストール
 cd tfme
-npm install
+pnpm install
 
 # ビルド
-npm run build
+pnpm run build
 
 # 開発モード（watch）
-npm run dev
+pnpm run dev
 
 # ローカル実行
-npm run start export providers.json -o output
-npm run start download providers.json -o docs
+pnpm run start export -r aws_vpc -o output
+pnpm run start download -r aws_vpc -o docs
 ```
 
 ## 使用例
@@ -123,107 +142,97 @@ npm run start download providers.json -o docs
 npm install -g @infodb/tfme
 
 # または pnpx で実行
-pnpx @infodb/tfme export providers.json -o output --split
-pnpx @infodb/tfme download providers.json -p aws -o docs
-```
-
-### Terraform schema生成
-
-```bash
-cd path/to/terraform
-terraform init
-terraform providers schema -json > providers.json
+pnpx @infodb/tfme export -p aws -o output
+pnpx @infodb/tfme download -p aws -r aws_vpc -o docs
 ```
 
 ### YAML エクスポート
 
 ```bash
-# 全プロバイダーを分割ファイルで出力
-pnpx @infodb/tfme export providers.json -o output --split
+# リソース指定（プロバイダ名は自動推測）
+pnpx @infodb/tfme export -r aws_vpc -o output
 
-# 特定プロバイダー（AWS）のみ
-pnpx @infodb/tfme export providers.json -p aws -o output --split
-
-# 特定リソースのみ
-pnpx @infodb/tfme export providers.json -p aws -r aws_instance -o output
+# キャッシュクリアして再取得
+pnpx @infodb/tfme export -r azurerm_virtual_network --clear-cache -o output
 ```
 
 ### ドキュメントダウンロード
 
 ```bash
-# AWS プロバイダーのドキュメント全体
-pnpx @infodb/tfme download providers.json -p aws -o docs
+# リソース指定（プロバイダ名は自動推測）
+pnpx @infodb/tfme download -r aws_vpc -o docs
 
-# 特定リソースのドキュメント
-pnpx @infodb/tfme download providers.json -p aws -r aws_instance -o docs
+# 特定バージョン指定
+pnpx @infodb/tfme download -r aws_s3_bucket -v 5.0.0 -o docs
 
-# バージョン指定
-pnpx @infodb/tfme download providers.json -p aws -v 5.0.0 -o docs
+# カスタムnamespace
+pnpx @infodb/tfme download -r custom_resource -n mycompany -o docs
 ```
 
-## 出力ファイル構造
+## スキーマ生成（リポジトリメンテナー向け）
 
-### 分割ファイル構造（--split）
+プロバイダースキーマを生成してリポジトリに格納:
 
-```
-output/
-  aws/
-    resources/
-      aws_instance.yaml
-      aws_s3_bucket.yaml
-      ...
-  azurerm/
-    resources/
-      azurerm_virtual_machine.yaml
-      ...
+```bash
+cd schemas/scripts
+./generate-schemas.sh
 ```
 
-### ドキュメントファイル構造
+**生成処理**:
+1. 各プロバイダーディレクトリでTerraform初期化
+2. `terraform providers schema -json` 実行
+3. `schemas/providers/{provider}.json` に保存
+4. リポジトリにコミット
 
-```
-docs/
-  aws/
-    resources/
-      aws_instance.md
-      aws_s3_bucket.md
-      ...
-```
+## 出力フォーマット
 
-## YAML 出力フォーマット
+### YAML 出力
+
+指定したリソースのschemaのみをYAMLに変換（加工なし）:
 
 ```yaml
-provider_info:
-  namespace: hashicorp
-  name: aws
-  version: "5.0.0"
+version: 1
+block:
+  attributes:
+    arn:
+      type: string
+      description_kind: plain
+      computed: true
+    cidr_block:
+      type: string
+      description_kind: plain
+      optional: true
+      computed: true
+    enable_dns_support:
+      type: bool
+      description_kind: plain
+      optional: true
+```
 
-resources:
-  aws_instance:
-    name: aws_instance
-    type: resource
-    description:
-      en_us: "Provides an EC2 instance resource"
-      ja_jp: ""
-    attributes:
-      ami:
-        name: ami
-        type: string
-        required: true
-        description:
-          en_us: "AMI to use for the instance"
-          ja_jp: ""
-    blocks:
-      ebs_block_device:
-        name: ebs_block_device
-        nesting_mode: list
-        description:
-          en_us: "Additional EBS block devices"
-          ja_jp: ""
-        attributes:
-          device_name:
-            name: device_name
-            type: string
-            required: true
+### Markdown ドキュメント
+
+Terraform公式ドキュメント形式:
+
+```markdown
+---
+subcategory: "VPC (Virtual Private Cloud)"
+layout: "aws"
+page_title: "AWS: aws_vpc"
+---
+
+# Resource: aws_vpc
+
+Provides a VPC resource.
+```
+
+## キャッシュディレクトリ
+
+```
+~/.tfme/
+└── cache/
+    ├── aws.json
+    ├── azurerm.json
+    └── google.json
 ```
 
 ## 開発・リリース手順
@@ -258,49 +267,60 @@ git push
 
 ### よくある問題
 
-1. **providers.json not found**: Terraform schemaファイルが存在することを確認
-2. **型エラー**: TypeScriptビルドエラーは`npm run build`で確認
-3. **ダウンロードエラー**: Terraform Registryへの接続を確認
-4. **YAML構文エラー**: 生成されたYAMLファイルの構文を確認
+1. **Schema not found**: GitHubリポジトリにスキーマファイルが存在することを確認
+2. **Document not found**: リソース名が正しいか確認（`aws_vpc`など、プロバイダープレフィックス付き）
+3. **Rate limit**: レート制限に達した場合は時間をおいて再実行
+4. **Cache issues**: `--clear-cache`フラグでキャッシュクリア
 
 ### デバッグ
 
 ```bash
-# TypeScriptコンパイルエラー確認
-npm run build
+# 詳細ログ出力（開発時）
+pnpm run start export -r aws_vpc -o output
 
-# ローカルで実行してログ確認
-npm run start export providers.json -o output
-npm run start download providers.json -o docs
+# キャッシュ確認
+ls -la ~/.tfme/cache/
+
+# キャッシュクリアして再取得
+pnpm run start export -r aws_vpc --clear-cache -o output
 ```
+
+## API仕様
+
+### Terraform Registry API v2
+
+**Base URL**: `https://registry.terraform.io`
+
+**主要エンドポイント**:
+1. プロバイダーバージョン一覧
+   - `GET /v2/providers/{namespace}/{name}/provider-versions`
+2. ドキュメント一覧
+   - `GET /v2/provider-docs?filter[provider-version]={id}`
+3. ドキュメント詳細
+   - `GET /v2/provider-docs/{doc_id}`
 
 ## 今後の改善案
 
 ### 短期的改善
-- [ ] データソース（data sources）のサポート
-- [ ] エラーハンドリングの強化
 - [ ] プログレスバーの追加
 - [ ] 並列ダウンロード対応
+- [ ] エラーリカバリー機能
 
 ### 長期的改善
-- [ ] カスタムテンプレート対応
-- [ ] 翻訳機能の追加
+- [ ] データソースのサポート強化
+- [ ] カスタムフィルタリング
 - [ ] Web UIの提供
 - [ ] CI/CD統合サポート
 
 ## メンテナンス時の注意点
 
 ### 依存関係更新
-- Commander.js, YAML, Chalkの最新版を定期チェック
-- TypeScriptバージョンの互換性確認
-
-### 型定義の管理
-- Terraform schema形式の変更に注意
-- 新しい属性タイプのサポート追加
+- Commander.js, YAML, TypeScriptの最新版を定期チェック
+- Terraform Registry API仕様の変更に注意
 
 ### テスト
 - 主要プロバイダー（AWS, Azure, GCP）での動作確認
-- エッジケースのテスト（空のschema, 巨大なschemaなど）
+- エッジケース（大容量スキーマ、レート制限など）のテスト
 
 ---
 
