@@ -1,13 +1,14 @@
 # tfme
 
-Terraform schema to YAML conversion and documentation download.
+Terraform provider schema converter and documentation downloader.
 
 ## Features
 
-- **YAML Export**: Convert `terraform providers schema -json` output to YAML format
-- **Markdown Download**: Download resource documentation from Terraform Registry
-- **Split Files**: Generate one YAML file per resource for better organization
-- **Provider Filtering**: Export/download specific providers or resources
+- **YAML Export**: Export specific Terraform resource schema to YAML format (simple conversion, no transformations)
+- **Markdown Download**: Download specific resource documentation from Terraform Registry API
+- **Auto Provider Detection**: Automatically detect provider name from resource name (e.g., `aws_vpc` → `aws`)
+- **GitHub Integration**: Automatically download provider schemas from GitHub repository
+- **Local Cache**: Cache downloaded schemas in `~/.tfme/cache/` for faster access
 
 ## Installation
 
@@ -20,95 +21,55 @@ pnpx @infodb/tfme
 
 # Or install locally and build
 cd tfme
-npm install
-npm run build
+pnpm install
+pnpm run build
 ```
 
-## Usage
+## Quick Start
 
-### 1. Generate Terraform Provider Schema
-
-First, generate the provider schema JSON file:
+### Export Resource Schema to YAML
 
 ```bash
-cd sample/terraform
-terraform init
-terraform providers schema -json > ../providers/providers.json
+# Export resource schema (provider auto-detected from resource name)
+pnpx @infodb/tfme export -r aws_vpc -o output
+
+# Clear cache and download fresh schema
+pnpx @infodb/tfme export -r aws_vpc --clear-cache -o output
 ```
 
-### 2. Export to YAML
-
-Export all resources from all providers:
+### Download Resource Documentation
 
 ```bash
-pnpx @infodb/tfme export sample/providers/providers.json --output output --split
-```
+# Download resource documentation (provider auto-detected)
+pnpx @infodb/tfme download -r aws_vpc -o docs
 
-Export specific provider:
-
-```bash
-pnpx @infodb/tfme export sample/providers/providers.json --provider aws --output output --split
-```
-
-Export specific resource:
-
-```bash
-pnpx @infodb/tfme export sample/providers/providers.json --provider aws --resource aws_vpc --output output
-```
-
-### 3. Download Documentation
-
-Download all resource documentation:
-
-```bash
-pnpx @infodb/tfme download sample/providers/providers.json --output docs
-```
-
-Download specific provider documentation:
-
-```bash
-pnpx @infodb/tfme download sample/providers/providers.json --provider aws --output docs
-```
-
-Download specific resource documentation:
-
-```bash
-pnpx @infodb/tfme download sample/providers/providers.json --provider aws --resource aws_vpc --output docs
+# With specific version
+pnpx @infodb/tfme download -r aws_vpc -v 5.0.0 -o docs
 ```
 
 ## Command Reference
 
 ### `export` Command
 
-Export Terraform provider schema to YAML format.
+Export Terraform resource schema to YAML format.
 
 ```
-tfme export <json-path> [options]
+tfme export [options]
 ```
-
-**Arguments:**
-- `<json-path>`: Path to providers.json file (from `terraform providers schema -json`)
 
 **Options:**
-- `-p, --provider <provider>`: Filter by provider name (e.g., aws, azurerm)
-- `-r, --resource <resource>`: Export specific resource (e.g., aws_instance)
+- `-r, --resource <resource>` (required): Resource name (e.g., aws_vpc)
 - `-o, --output <dir>`: Output directory (default: "output")
-- `-s, --split`: Generate split files (one per resource)
+- `--clear-cache`: Clear cache before downloading
 
 **Examples:**
 
 ```bash
-# Export all providers to single files
-pnpx @infodb/tfme export sample/providers/providers.json -o output
+# Export resource schema (provider auto-detected)
+pnpx @infodb/tfme export -r aws_vpc -o output
 
-# Export all providers to split files (one per resource)
-pnpx @infodb/tfme export sample/providers/providers.json -o output --split
-
-# Export specific provider
-pnpx @infodb/tfme export sample/providers/providers.json -p aws -o output --split
-
-# Export specific resource
-pnpx @infodb/tfme export sample/providers/providers.json -p aws -r aws_vpc -o output
+# Export with cache clearing
+pnpx @infodb/tfme export -r azurerm_virtual_network --clear-cache -o output
 ```
 
 ### `download` Command
@@ -116,116 +77,141 @@ pnpx @infodb/tfme export sample/providers/providers.json -p aws -r aws_vpc -o ou
 Download Markdown documentation from Terraform Registry.
 
 ```
-tfme download <json-path> [options]
+tfme download [options]
 ```
 
-**Arguments:**
-- `<json-path>`: Path to providers.json file
-
 **Options:**
-- `-p, --provider <provider>`: Filter by provider name
-- `-r, --resource <resource>`: Download specific resource documentation
+- `-r, --resource <resource>` (required): Resource name (e.g., aws_vpc)
 - `-o, --output <dir>`: Output directory (default: "docs")
-- `-v, --version <version>`: Provider version (default: "latest")
+- `-n, --namespace <namespace>`: Provider namespace (default: hashicorp)
+- `-v, --version <version>`: Provider version (default: latest)
 
 **Examples:**
 
 ```bash
-# Download all documentation
-pnpx @infodb/tfme download sample/providers/providers.json -o docs
+# Download resource documentation (provider auto-detected)
+pnpx @infodb/tfme download -r aws_vpc -o docs
 
-# Download specific provider
-pnpx @infodb/tfme download sample/providers/providers.json -p aws -o docs
+# Download with specific version
+pnpx @infodb/tfme download -r aws_s3_bucket -v 5.0.0 -o docs
 
-# Download specific resource
-pnpx @infodb/tfme download sample/providers/providers.json -p aws -r aws_vpc -o docs
-
-# Download specific version
-pnpx @infodb/tfme download sample/providers/providers.json -p aws -v 5.0.0 -o docs
+# Download with custom namespace
+pnpx @infodb/tfme download -r aws_vpc -n hashicorp -o docs
 ```
+
+## Schema Generation (for Repository Maintainers)
+
+Provider schemas are stored in this repository under `schemas/providers/`. To generate new schemas:
+
+```bash
+cd schemas/scripts
+./generate-schemas.sh
+```
+
+This script:
+1. Initializes Terraform for each provider (aws, azurerm, google)
+2. Generates schema JSON for each provider
+3. Saves to `schemas/providers/{provider}.json`
 
 ## Output Format
 
-### Split Files Structure
+### YAML Export
 
-When using `--split` option:
-
-```
-output/
-  aws/
-    resources/
-      aws_instance.yaml
-      aws_s3_bucket.yaml
-      ...
-  azurerm/
-    resources/
-      azurerm_virtual_machine.yaml
-      ...
-```
-
-### YAML Structure
+The export command extracts the specified resource schema and converts it to YAML format:
 
 ```yaml
-provider_info:
-  namespace: hashicorp
-  name: aws
-  version: "5.0.0"
-
-resources:
-  aws_instance:
-    name: aws_instance
-    type: resource
-    description:
-      en_us: "Provides an EC2 instance resource"
-      ja_jp: ""
-    attributes:
-      ami:
-        name: ami
-        type: string
-        required: true
-        description:
-          en_us: "AMI to use for the instance"
-          ja_jp: ""
-      instance_type:
-        name: instance_type
-        type: string
-        required: true
-        description:
-          en_us: "The instance type to use for the instance"
-          ja_jp: ""
-    blocks:
-      ebs_block_device:
-        name: ebs_block_device
-        nesting_mode: list
-        description:
-          en_us: "Additional EBS block devices to attach to the instance"
-          ja_jp: ""
-        attributes:
-          device_name:
-            name: device_name
-            type: string
-            required: true
-            description:
-              en_us: "The name of the device to mount"
-              ja_jp: ""
+version: 1
+block:
+  attributes:
+    arn:
+      type: string
+      description_kind: plain
+      computed: true
+    cidr_block:
+      type: string
+      description_kind: plain
+      optional: true
+      computed: true
+    enable_dns_support:
+      type: bool
+      description_kind: plain
+      optional: true
 ```
+
+### Markdown Documentation
+
+Downloaded documentation is in standard Terraform documentation format:
+
+```markdown
+---
+subcategory: "VPC (Virtual Private Cloud)"
+layout: "aws"
+page_title: "AWS: aws_vpc"
+---
+
+# Resource: aws_vpc
+
+Provides a VPC resource.
+
+## Example Usage
+...
+```
+
+## Cache Directory
+
+Downloaded schemas are cached in `~/.tfme/cache/` to improve performance:
+
+```
+~/.tfme/
+└── cache/
+    ├── aws.json
+    ├── azurerm.json
+    └── google.json
+```
+
+Clear cache with `--clear-cache` flag or manually delete files.
 
 ## Development
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Build
-npm run build
+pnpm run build
 
 # Watch mode
-npm run dev
+pnpm run dev
 
 # Run CLI
-npm run start <command> [options]
+pnpm run start export -r aws_vpc -o output
+pnpm run start download -r aws_vpc -o docs
+```
+
+### Project Structure
+
+```
+tfme/
+├── bin/cli.js              # CLI entry point
+├── src/
+│   ├── index.ts            # Main CLI setup
+│   ├── commands/
+│   │   ├── export.ts       # Export command
+│   │   └── download.ts     # Download command
+│   └── utils/
+│       ├── converter.ts    # JSON to YAML converter
+│       ├── schema-fetcher.ts # GitHub schema fetcher with cache
+│       └── registry-client.ts # Terraform Registry API client
+└── schemas/
+    ├── terraform/          # Terraform configurations per provider
+    │   ├── aws/
+    │   ├── azurerm/
+    │   └── google/
+    ├── providers/          # Generated schema JSON files
+    └── scripts/
+        └── generate-schemas.sh
 ```
 
 ## License
 
-See project root for license information.
+MIT

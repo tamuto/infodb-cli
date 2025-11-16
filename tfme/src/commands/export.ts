@@ -1,77 +1,101 @@
-import { SchemaParser } from '../parsers/schema-parser';
-import { YamlGenerator } from '../generators/yaml-generator';
+import { writeFileSync, existsSync, mkdirSync } from 'fs';
+import { dirname } from 'path';
+import { SchemaFetcher } from '../utils/schema-fetcher';
+import { Converter } from '../utils/converter';
 
 export interface ExportOptions {
-  provider?: string;
-  resource?: string;
+  resource: string;
   output: string;
-  split?: boolean;
+  clearCache?: boolean;
 }
 
-export async function exportCommand(jsonPath: string, options: ExportOptions): Promise<void> {
-  console.log('Starting YAML export...');
+export async function exportCommand(options: ExportOptions): Promise<void> {
+  // Auto-detect provider from resource name
+  const provider = inferProviderFromResource(options.resource);
 
-  const parser = new SchemaParser(jsonPath);
-  const generator = new YamlGenerator();
+  console.log(`Starting YAML export for ${options.resource}...`);
+  console.log(`Provider: ${provider}`);
 
-  const providers = parser.getProviders();
-  console.log(`Found ${providers.length} provider(s): ${providers.join(', ')}`);
+  const fetcher = new SchemaFetcher();
 
-  // Filter by provider if specified
-  const targetProviders = options.provider
-    ? providers.filter((p) => p.includes(options.provider!))
-    : providers;
-
-  if (targetProviders.length === 0) {
-    console.error(`No providers found matching: ${options.provider}`);
-    return;
+  // Clear cache if requested
+  if (options.clearCache) {
+    fetcher.clearCache(provider);
   }
 
-  for (const providerName of targetProviders) {
-    console.log(`\nProcessing provider: ${providerName}`);
-    const providerInfo = parser.getProviderInfo(providerName);
+  try {
+    // Get schema from GitHub/cache
+    const schemaJson = await fetcher.getSchema(provider);
 
-    if (options.resource) {
-      // Export single resource
-      const resource = parser.getResource(providerName, options.resource);
-      if (!resource) {
-        console.error(`Resource not found: ${options.resource}`);
-        continue;
-      }
+    // Parse JSON
+    const schemaData = JSON.parse(schemaJson);
 
-      const output = {
-        provider_info: providerInfo,
-        resources: {
-          [options.resource]: resource,
-        },
-      };
+    // Extract resource schema
+    const resourceSchema = extractResourceSchema(schemaData, provider, options.resource);
 
-      const outputPath = options.split
-        ? `${options.output}/${providerInfo.name}/resources/${options.resource}.yaml`
-        : `${options.output}/${providerInfo.name}_${options.resource}.yaml`;
+    if (!resourceSchema) {
+      throw new Error(`Resource not found: ${options.resource}`);
+    }
 
-      generator.generateSingleFile(output, outputPath);
-      console.log(`Exported: ${outputPath}`);
-    } else {
-      // Export all resources
-      const resources = parser.getResources(providerName);
-      const resourceCount = Object.keys(resources).length;
-      console.log(`Found ${resourceCount} resource(s)`);
+    // Convert to YAML
+    console.log(`Converting to YAML...`);
+    const yamlContent = Converter.objectToYaml(resourceSchema);
 
-      if (options.split) {
-        generator.generateSplitFiles(providerInfo, resources, options.output);
-        console.log(`Exported ${resourceCount} files to: ${options.output}/${providerInfo.name}/resources/`);
-      } else {
-        const output = {
-          provider_info: providerInfo,
-          resources,
-        };
-        const outputPath = `${options.output}/${providerInfo.name}.yaml`;
-        generator.generateSingleFile(output, outputPath);
-        console.log(`Exported: ${outputPath}`);
-      }
+    // Write output file
+    const outputPath = `${options.output}/${options.resource}.yaml`;
+    ensureDirectoryExists(outputPath);
+    writeFileSync(outputPath, yamlContent, 'utf-8');
+
+    console.log(`✅ Exported: ${outputPath}`);
+    console.log(`\nExport completed!`);
+  } catch (error) {
+    console.error(`Export failed:`, error);
+    throw error;
+  }
+}
+
+function inferProviderFromResource(resourceName: string): string {
+  // Extract provider name from resource name (e.g., "aws_vpc" -> "aws")
+  const parts = resourceName.split('_');
+  if (parts.length < 2) {
+    throw new Error(`Invalid resource name format: ${resourceName}. Expected format: {provider}_{resource_type}`);
+  }
+  return parts[0];
+}
+
+function extractResourceSchema(schemaData: any, provider: string, resourceName: string): any | null {
+  // Find provider schema
+  const providerSchemas = schemaData.provider_schemas || {};
+
+  // Try to find the provider schema (could be registry.terraform.io/hashicorp/{provider})
+  let providerSchema = null;
+  for (const key of Object.keys(providerSchemas)) {
+    if (key.includes(`/${provider}`)) {
+      providerSchema = providerSchemas[key];
+      break;
     }
   }
 
-  console.log('\nExport completed!');
+  if (!providerSchema) {
+    return null;
+  }
+
+  // Check resource_schemas
+  if (providerSchema.resource_schemas && providerSchema.resource_schemas[resourceName]) {
+    return providerSchema.resource_schemas[resourceName];
+  }
+
+  // Check data_source_schemas
+  if (providerSchema.data_source_schemas && providerSchema.data_source_schemas[resourceName]) {
+    return providerSchema.data_source_schemas[resourceName];
+  }
+
+  return null;
+}
+
+function ensureDirectoryExists(path: string): void {
+  const dir = dirname(path);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
 }
