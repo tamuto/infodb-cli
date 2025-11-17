@@ -31,7 +31,8 @@ program
 program
   .command('download')
   .description('Download Markdown documentation from Terraform Registry')
-  .requiredOption('-r, --resource <resource>', 'Resource name (e.g., aws_vpc)')
+  .option('-r, --resource <resource>', 'Resource name (e.g., aws_vpc)')
+  .option('-d, --datasource <datasource>', 'Data source name (e.g., aws_vpc)')
   .option('-o, --output <dir>', 'Output directory', 'docs')
   .option('-n, --namespace <namespace>', 'Provider namespace (default: hashicorp)')
   .option('-v, --version <version>', 'Provider version (default: latest)', 'latest')

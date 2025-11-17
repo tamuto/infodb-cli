@@ -193,6 +193,48 @@ export class RegistryClient {
   }
 
   /**
+   * Get a specific provider document by slug (optimized - single request)
+   * Uses filter[slug] to directly fetch the target document instead of scanning all pages
+   */
+  async getProviderDocBySlug(
+    providerVersionId: string,
+    category: string,
+    slug: string
+  ): Promise<DocumentData | null> {
+    const url = `${this.baseUrl}/v2/provider-docs`;
+    const params = new URLSearchParams({
+      'filter[provider-version]': providerVersionId,
+      'filter[category]': category,
+      'filter[slug]': slug,
+    });
+
+    try {
+      const response = await fetch(`${url}?${params}`, {
+        headers: {
+          'User-Agent': 'tfme/0.2.0',
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json() as ApiResponse;
+      const docs = data.data as DocumentData[];
+
+      if (!docs || docs.length === 0) {
+        return null;
+      }
+
+      // Should return exactly one document
+      return docs[0];
+    } catch (error) {
+      throw new Error(`Failed to get document for slug '${slug}': ${error}`);
+    }
+  }
+
+  /**
    * Get content of a specific document
    */
   async getDocumentContent(docId: string): Promise<string> {
@@ -223,11 +265,13 @@ export class RegistryClient {
   }
 
   /**
-   * Download documentation for a specific resource
+   * Download documentation for a specific resource or data source
+   * @param category 'resources' or 'data-sources'
    */
   async downloadResourceDoc(
     provider: ProviderVersion,
     resourceName: string,
+    category: 'resources' | 'data-sources',
     outputPath: string
   ): Promise<void> {
     try {
@@ -245,21 +289,17 @@ export class RegistryClient {
         throw new Error(`Provider version not found: ${provider.namespace}/${provider.name}@${provider.version}`);
       }
 
-      // Get docs list for resources category
-      const category = resourceName.startsWith(`${provider.name}_`) ? 'resources' : 'data-sources';
-      const docs = await this.getProviderDocsList(providerVersionId, category);
-
       // Remove provider prefix from resource name to get slug
       // e.g., "aws_vpc" -> "vpc"
       const slug = resourceName.startsWith(`${provider.name}_`)
         ? resourceName.substring(provider.name.length + 1)
         : resourceName;
 
-      // Find the specific resource document
-      const doc = docs.find(d => d.attributes.slug === slug);
+      // Get the specific resource document directly using filter[slug] (optimized)
+      const doc = await this.getProviderDocBySlug(providerVersionId, category, slug);
 
       if (!doc) {
-        throw new Error(`Document not found for resource: ${resourceName} (slug: ${slug})`);
+        throw new Error(`Document not found for ${category === 'resources' ? 'resource' : 'data source'}: ${resourceName} (slug: ${slug})`);
       }
 
       // Get document content
