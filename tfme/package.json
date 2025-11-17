@@ -1,6 +1,6 @@
 {
   "name": "@infodb/tfme",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Terraform schema to YAML conversion and documentation download",
   "main": "dist/index.js",
   "bin": {

@@ -2,18 +2,33 @@ import { SchemaFetcher } from '../utils/schema-fetcher';
 import { RegistryClient, ProviderVersion } from '../utils/registry-client';
 
 export interface DownloadOptions {
-  resource: string;
+  resource?: string;
+  datasource?: string;
   output: string;
   namespace?: string;
   version?: string;
 }
 
 export async function downloadCommand(options: DownloadOptions): Promise<void> {
-  // Auto-detect provider from resource name
-  const provider = inferProviderFromResource(options.resource);
+  // Validate that exactly one of resource or datasource is specified
+  if (!options.resource && !options.datasource) {
+    throw new Error('Either --resource or --datasource must be specified');
+  }
+  if (options.resource && options.datasource) {
+    throw new Error('Cannot specify both --resource and --datasource');
+  }
+
+  // Determine target name and category
+  const targetName = options.resource || options.datasource!;
+  const category = options.resource ? 'resources' : 'data-sources';
+  const typeLabel = options.resource ? 'resource' : 'data source';
+
+  // Auto-detect provider from resource/datasource name
+  const provider = inferProviderFromResource(targetName);
 
   console.log('Starting documentation download...');
   console.log(`Provider: ${provider}`);
+  console.log(`Type: ${typeLabel}`);
 
   try {
     // Get provider info from schema
@@ -42,10 +57,10 @@ export async function downloadCommand(options: DownloadOptions): Promise<void> {
 
     // Download documentation
     const client = new RegistryClient();
-    const outputPath = `${options.output}/${options.resource}.md`;
+    const outputPath = `${options.output}/${targetName}.md`;
 
-    console.log(`Downloading documentation for ${options.resource}...`);
-    await client.downloadResourceDoc(providerVersion, options.resource, outputPath);
+    console.log(`Downloading documentation for ${targetName}...`);
+    await client.downloadResourceDoc(providerVersion, targetName, category, outputPath);
 
     console.log(`✅ Downloaded: ${outputPath}`);
     console.log(`\nDownload completed!`);
