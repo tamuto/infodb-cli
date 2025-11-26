@@ -1,7 +1,23 @@
 {
   "name": "@infodb/create-myts",
-  "version": "0.1.0",
   "description": "Scaffolding tool for TypeScript projects",
+  "version": "0.1.0",
+	"homepage": "https://github.com/tamuto/infodb-cli/",
+	"bugs": "https://github.com/tamuto/infodb-cli/issues",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/tamuto/infodb-cli",
+		"directory": "create-myts"
+	},
+  "keywords": [
+    "cli",
+    "typescript",
+    "scaffold",
+    "template"
+  ],
+	"author": "tamuto <tamuto@infodb.jp>",
+	"license": "MIT",
+	"main": "bin.js",
   "type": "module",
   "bin": {
     "create-myts": "./bin/cli.js"
@@ -16,12 +32,6 @@
     "build": "tsc",
     "start": "node dist/index.js"
   },
-  "keywords": [
-    "cli",
-    "typescript",
-    "scaffold",
-    "template"
-  ],
   "engines": {
     "node": ">=18.0.0"
   },
@@ -32,5 +42,8 @@
     "@types/node": "^24.10.1",
     "@types/prompts": "^2.4.9",
     "typescript": "^5.9.3"
-  }
+  },
+	"publishConfig": {
+		"access": "public"
+	}
 }
