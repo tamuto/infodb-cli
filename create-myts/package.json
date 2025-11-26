@@ -1,0 +1,36 @@
+{
+  "name": "@infodb/create-myts",
+  "version": "0.1.0",
+  "description": "Scaffolding tool for TypeScript projects",
+  "type": "module",
+  "bin": {
+    "create-myts": "./bin/cli.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "templates"
+  ],
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "keywords": [
+    "cli",
+    "typescript",
+    "scaffold",
+    "template"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "prompts": "^2.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/prompts": "^2.4.9",
+    "typescript": "^5.9.3"
+  }
+}
