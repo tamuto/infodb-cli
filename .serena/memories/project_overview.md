@@ -1,0 +1,6 @@
+## Overview
+- Monorepo of custom CLI tools that streamline Infodb7s workflows; top-level README highlights three maintained packages: `create-myproj` (project boilerplate generator), `worktree` (Git worktree/VSC workspace helper) and `lctl` (AWS Lambda management CLI).
+- All packages are Node.js/TypeScript projects that compile `src` into `dist` and expose executables under `bin/`; pnpm is used for dependency management (each package bundles its own lockfile).
+- The `lctl` package is the active focus: it reads YAML configs describing Lambda functions, builds ZIPs, emits AWS CLI deploy scripts and runs `deploy`, `makezip`, `export` commands against AWS.
+- Repo layout: `/lctl` (source, configs, sample, bin), `/create-myproj`, `/worktree`, `/licscan`, plus legacy `infodb-cli(deprecated)`.
+- Typical workflow: edit TypeScript under `src`, run `pnpm run build` to transpile, run CLI via `pnpm start` or directly through `pnpx @infodb/<pkg> ...`; `sample/` in each package provides manual test fixtures.
