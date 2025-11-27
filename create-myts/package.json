@@ -20,10 +20,10 @@
 	"main": "bin.js",
   "type": "module",
   "bin": {
-    "create-myts": "./bin/cli.js"
+    "create-myts": "./bin.js"
   },
   "files": [
-    "bin",
+    "bin.js",
     "dist",
     "templates"
   ],
