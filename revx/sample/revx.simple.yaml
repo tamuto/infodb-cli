@@ -9,7 +9,7 @@ routes:
     pathRewrite:
       "^/api": ""
 
-  - path: "/auth/*"
-    target: "http://localhost:5000"
-    pathRewrite:
-      "^/auth": ""
+  - path: "/*"
+    target: "http://localhost:5173"
+    ws: true
+    changeOrigin: true

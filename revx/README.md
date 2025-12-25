@@ -7,14 +7,12 @@ Reverse proxy CLI tool with YAML configuration. Built with Express and http-prox
 - YAML-based configuration
 - Simple reverse proxy setup
 - **Automatic route sorting** - Routes are automatically sorted by specificity (longest paths first)
-- Load balancing (Round-robin, Random, IP-hash)
-- WebSocket support
-- Request/Response header transformation
+- WebSocket support (critical for HMR)
+- Static file serving
 - CORS configuration
-- SSL/TLS support
-- Health checks
-- Request ID tracking
+- Path rewriting
 - Environment variable expansion
+- Optimized for development servers like Vite
 
 ## Installation
 
@@ -119,8 +117,6 @@ routes:
 
 ```yaml
 global:
-  timeout: 30000
-
   # Max concurrent sockets (default: 256)
   # Increase for better performance with dev servers like Vite
   maxSockets: 512
@@ -134,7 +130,6 @@ global:
   logging:
     enabled: true
     format: "combined"  # combined | dev | common | short | tiny
-    level: "info"       # error | warn | info | debug
 ```
 
 ### Performance Tuning
@@ -196,21 +191,9 @@ routes:
       "^/api": ""
 ```
 
-#### Load Balancing
-
-```yaml
-routes:
-  - path: "/balanced/*"
-    targets:
-      - "http://server1.example.com"
-      - "http://server2.example.com"
-      - "http://server3.example.com"
-    strategy: "round-robin"  # round-robin | random | ip-hash
-    pathRewrite:
-      "^/balanced": ""
-```
-
 #### WebSocket Proxy
+
+WebSocket support is critical for Hot Module Replacement (HMR) with development servers like Vite:
 
 ```yaml
 routes:
@@ -220,63 +203,40 @@ routes:
     changeOrigin: true
 ```
 
-#### Header Transformation
+#### Static File Serving
+
+Serve static files directly without proxying (useful for `vite build --watch` output):
 
 ```yaml
 routes:
-  - path: "/transform/*"
-    target: "http://backend.example.com"
-    transform:
-      request:
-        headers:
-          add:
-            X-API-Version: "v2"
-            X-Custom-Header: "value"
-          remove:
-            - "Cookie"
-      response:
-        headers:
-          add:
-            X-Proxy-Server: "revx"
-          remove:
-            - "Server"
+  - path: "/*"
+    static: "./dist"
 ```
 
-#### Custom Options
-
+**Combined with API proxy:**
 ```yaml
 routes:
+  # API requests go to backend
   - path: "/api/*"
-    target: "http://api.example.com"
-    options:
-      timeout: 5000
-      followRedirects: true
-      headers:
-        X-Forwarded-Host: "${HOST}"
+    target: "http://localhost:4000"
+    pathRewrite:
+      "^/api": ""
+
+  # Static files from Vite build
+  - path: "/*"
+    static: "./dist"
 ```
 
-### Middleware
+**Use case: Vite build --watch**
+```bash
+# Terminal 1: Run Vite in build watch mode
+vite build --watch
 
-```yaml
-middleware:
-  - type: "requestId"
-    enabled: true
-    headerName: "X-Request-ID"
-
-  - type: "compression"
-    enabled: true
-    threshold: 1024
+# Terminal 2: Run revx to serve the built files
+revx start
 ```
 
-### SSL/TLS
-
-```yaml
-ssl:
-  enabled: true
-  key: "/path/to/private.key"
-  cert: "/path/to/certificate.crt"
-  ca: "/path/to/ca.crt"  # Optional
-```
+This serves pre-built static files, avoiding proxy-related errors that can occur with Vite dev server.
 
 ### Environment Variables
 
@@ -289,15 +249,12 @@ server:
 routes:
   - path: "/api/*"
     target: "${API_URL}"
-    options:
-      headers:
-        Authorization: "Bearer ${API_TOKEN}"
 ```
 
 Then run:
 
 ```bash
-PORT=3000 API_URL=http://api.example.com API_TOKEN=secret revx start
+PORT=3000 API_URL=http://api.example.com revx start
 ```
 
 ## Examples
@@ -371,62 +328,54 @@ routes:
   # Proxy everything else to Vite dev server
   - path: "/*"
     target: "http://localhost:5173"
-    ws: true
+    ws: true  # Enable WebSocket for HMR
     changeOrigin: true
 ```
 
-### Production Load Balancer
+### Vite Build Watch Mode
 
 ```yaml
 server:
-  port: 443
-  name: "Production Load Balancer"
-
-ssl:
-  enabled: true
-  key: "/etc/ssl/private/server.key"
-  cert: "/etc/ssl/certs/server.crt"
+  port: 3000
 
 routes:
+  # Proxy API requests to backend
+  - path: "/api/*"
+    target: "http://localhost:4000"
+    pathRewrite:
+      "^/api": ""
+
+  # Serve static files built by Vite
   - path: "/*"
-    targets:
-      - "http://app-server-1:8080"
-      - "http://app-server-2:8080"
-      - "http://app-server-3:8080"
-    strategy: "round-robin"
-    healthCheck:
-      enabled: true
-      interval: 30000
-      path: "/health"
-      timeout: 3000
+    static: "./dist"
+```
+
+Run with:
+```bash
+# Terminal 1: Build and watch
+vite build --watch
+
+# Terminal 2: Serve with revx
+revx start
 ```
 
 ## Troubleshooting
 
-### CONTENT_LENGTH_MISMATCH Error
+### Vite Development Server Issues
 
-The proxy automatically handles `CONTENT_LENGTH_MISMATCH` errors (common with Vite dev server) by:
+When proxying directly to Vite dev server, you may encounter errors due to dynamic content transformation. For a more stable setup, consider using `vite build --watch` with static file serving instead:
 
-- **Silently ignoring these errors** in the error handler
-- CONTENT_LENGTH_MISMATCH errors are typically benign with streaming responses
-- The content is usually already successfully delivered to the client
+```bash
+# Terminal 1: Build and watch
+vite build --watch
 
-This is especially important for Vite, which dynamically transforms content (ESM conversion, HMR, etc.), causing the actual response size to differ from the original Content-Length header.
+# Terminal 2: Serve with revx
+revx start
+```
 
-**Technical details:**
-- The error handler checks for `CONTENT_LENGTH_MISMATCH` in error messages
-- These errors are logged only in verbose mode and don't interrupt the response
-- The response has usually completed successfully before the error is detected
-- Works transparently without configuration needed
+This approach serves pre-built files and avoids proxy-related issues.
 
-**Why this works:**
-- Vite sends Content-Length based on original file size
-- Vite then transforms the content (ESM imports, HMR injection)
-- The transformed content has a different size
-- By the time the mismatch is detected, the client has already received the content
-- Ignoring the error prevents unnecessary 502 responses
-
-### Performance Issues with Vite or Dev Servers
+### Performance Issues with Dev Servers
 
 If you experience slow loading or timeouts when proxying to Vite or similar dev servers:
 
@@ -454,7 +403,7 @@ If you experience slow loading or timeouts when proxying to Vite or similar dev 
 - Only use `pathRewrite` when you need to modify the path
 
 **Q: CORS errors**
-- Enable CORS in global config or per-route
+- Enable CORS in global config
 - Check the `origin` setting matches your client URL
 
 ## Development

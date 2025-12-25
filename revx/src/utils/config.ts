@@ -10,12 +10,6 @@ export interface CorsConfig {
   credentials?: boolean;
 }
 
-export interface RateLimitConfig {
-  enabled?: boolean;
-  windowMs?: number;
-  max?: number;
-}
-
 export interface LoggingConfig {
   enabled?: boolean;
   format?: 'combined' | 'dev' | 'common' | 'short' | 'tiny';
@@ -23,10 +17,8 @@ export interface LoggingConfig {
 }
 
 export interface GlobalConfig {
-  timeout?: number;
   cors?: CorsConfig;
   logging?: LoggingConfig;
-  rateLimit?: RateLimitConfig;
   maxSockets?: number;
 }
 
@@ -37,82 +29,19 @@ export interface ServerConfig {
   maxSockets?: number;
 }
 
-export interface RouteOptions {
-  timeout?: number;
-  followRedirects?: boolean;
-  headers?: Record<string, string>;
-}
-
-export interface CacheConfig {
-  enabled?: boolean;
-  ttl?: number;
-}
-
-export interface AuthConfig {
-  type?: 'bearer' | 'basic' | 'apikey';
-  headerName?: string;
-}
-
-export interface HealthCheckConfig {
-  enabled?: boolean;
-  interval?: number;
-  path?: string;
-  timeout?: number;
-}
-
-export interface TransformConfig {
-  request?: {
-    headers?: {
-      add?: Record<string, string>;
-      remove?: string[];
-    };
-  };
-  response?: {
-    headers?: {
-      add?: Record<string, string>;
-      remove?: string[];
-    };
-  };
-}
-
 export interface RouteConfig {
   path: string;
   target?: string;
-  targets?: string[];
+  static?: string;
   changeOrigin?: boolean;
   pathRewrite?: Record<string, string>;
   ws?: boolean;
-  strategy?: 'round-robin' | 'random' | 'ip-hash';
-  options?: RouteOptions;
-  cors?: CorsConfig;
-  cache?: CacheConfig;
-  auth?: AuthConfig;
-  healthCheck?: HealthCheckConfig;
-  transform?: TransformConfig;
-}
-
-export interface MiddlewareConfig {
-  type: string;
-  enabled?: boolean;
-  paths?: string[];
-  config?: Record<string, any>;
-  headerName?: string;
-  threshold?: number;
-}
-
-export interface SslConfig {
-  enabled?: boolean;
-  key?: string;
-  cert?: string;
-  ca?: string;
 }
 
 export interface RevxConfig {
   server: ServerConfig;
   global?: GlobalConfig;
   routes: RouteConfig[];
-  middleware?: MiddlewareConfig[];
-  ssl?: SslConfig;
 }
 
 export class ConfigLoader {
@@ -213,22 +142,15 @@ export class ConfigLoader {
       throw new Error('Route path is required');
     }
 
-    if (!route.target && !route.targets) {
-      throw new Error(`Route ${route.path} must have either target or targets`);
+    const hasTarget = !!route.target;
+    const hasStatic = !!route.static;
+
+    if (!hasTarget && !hasStatic) {
+      throw new Error(`Route ${route.path} must have either target or static`);
     }
 
-    if (route.target && route.targets) {
-      throw new Error(`Route ${route.path} cannot have both target and targets`);
-    }
-
-    if (route.targets) {
-      if (!Array.isArray(route.targets) || route.targets.length === 0) {
-        throw new Error(`Route ${route.path} targets must be a non-empty array`);
-      }
-
-      if (route.strategy && !['round-robin', 'random', 'ip-hash'].includes(route.strategy)) {
-        throw new Error(`Route ${route.path} has invalid strategy: ${route.strategy}`);
-      }
+    if (hasTarget && hasStatic) {
+      throw new Error(`Route ${route.path} cannot have both target and static`);
     }
   }
 }
