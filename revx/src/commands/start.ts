@@ -5,8 +5,9 @@ import http from 'http';
 import https from 'https';
 import { createServer, Server as HttpServer } from 'http';
 import { createServer as createHttpsServer, Server as HttpsServer } from 'https';
-import { readFileSync } from 'fs';
-import { ConfigLoader, RevxConfig } from '../utils/config.js';
+import { readFileSync, existsSync } from 'fs';
+import { resolve, join } from 'path';
+import { ConfigLoader, RevxConfig, RouteConfig, StaticConfig } from '../utils/config.js';
 import { ProxyManager } from '../utils/proxy.js';
 import { Logger } from '../utils/logger.js';
 import { randomUUID } from 'crypto';
@@ -77,6 +78,45 @@ function setupMiddleware(app: express.Application, config: RevxConfig, logger: L
   app.use(express.urlencoded({ extended: true }));
 }
 
+function setupStaticRoute(app: express.Application, route: RouteConfig, logger: Logger): void {
+  const staticConfig: StaticConfig = typeof route.static === 'string'
+    ? { root: route.static }
+    : route.static!;
+
+  const rootPath = resolve(process.cwd(), staticConfig.root);
+
+  if (!existsSync(rootPath)) {
+    logger.error(`Static directory does not exist: ${rootPath}`);
+    throw new Error(`Static directory not found: ${rootPath}`);
+  }
+
+  const options = {
+    index: staticConfig.index !== undefined ? staticConfig.index : 'index.html',
+    dotfiles: staticConfig.dotfiles || 'ignore',
+    etag: staticConfig.etag !== undefined ? staticConfig.etag : true,
+    maxAge: staticConfig.maxAge || 0,
+    fallthrough: true
+  };
+
+  logger.info(`Static files configured: ${route.path} -> ${rootPath}`);
+  logger.verbose('Static options', options);
+
+  app.use(route.path, express.static(rootPath, options));
+
+  // SPA fallback: if fallback is specified, serve it for all non-matched routes
+  if (staticConfig.fallback) {
+    const fallbackPath = join(rootPath, staticConfig.fallback);
+    if (existsSync(fallbackPath)) {
+      app.use(route.path, (req: Request, res: Response, next: NextFunction) => {
+        res.sendFile(fallbackPath);
+      });
+      logger.info(`SPA fallback configured: ${staticConfig.fallback}`);
+    } else {
+      logger.warning(`Fallback file not found: ${fallbackPath}`);
+    }
+  }
+}
+
 function setupRoutes(
   app: express.Application,
   config: RevxConfig,
@@ -94,8 +134,12 @@ function setupRoutes(
       logger.verbose(`Route-specific CORS for ${route.path}`, routeCorsOptions);
     }
 
-    const proxyMiddleware = proxyManager.createProxyMiddleware(route);
-    app.use(proxyMiddleware);
+    if (route.static) {
+      setupStaticRoute(app, route, logger);
+    } else {
+      const proxyMiddleware = proxyManager.createProxyMiddleware(route);
+      app.use(proxyMiddleware);
+    }
   });
 
   app.get('/health', (req: Request, res: Response) => {

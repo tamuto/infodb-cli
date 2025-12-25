@@ -75,10 +75,20 @@ export interface TransformConfig {
   };
 }
 
+export interface StaticConfig {
+  root: string;
+  index?: string;
+  fallback?: string;
+  dotfiles?: 'allow' | 'deny' | 'ignore';
+  maxAge?: number;
+  etag?: boolean;
+}
+
 export interface RouteConfig {
   path: string;
   target?: string;
   targets?: string[];
+  static?: string | StaticConfig;
   changeOrigin?: boolean;
   pathRewrite?: Record<string, string>;
   ws?: boolean;
@@ -213,12 +223,17 @@ export class ConfigLoader {
       throw new Error('Route path is required');
     }
 
-    if (!route.target && !route.targets) {
-      throw new Error(`Route ${route.path} must have either target or targets`);
+    const hasTarget = !!route.target;
+    const hasTargets = !!route.targets;
+    const hasStatic = !!route.static;
+
+    if (!hasTarget && !hasTargets && !hasStatic) {
+      throw new Error(`Route ${route.path} must have either target, targets, or static`);
     }
 
-    if (route.target && route.targets) {
-      throw new Error(`Route ${route.path} cannot have both target and targets`);
+    const count = [hasTarget, hasTargets, hasStatic].filter(Boolean).length;
+    if (count > 1) {
+      throw new Error(`Route ${route.path} cannot have multiple of target, targets, or static`);
     }
 
     if (route.targets) {
@@ -229,6 +244,10 @@ export class ConfigLoader {
       if (route.strategy && !['round-robin', 'random', 'ip-hash'].includes(route.strategy)) {
         throw new Error(`Route ${route.path} has invalid strategy: ${route.strategy}`);
       }
+    }
+
+    if (route.static) {
+      // Static validation is done when setting up the route
     }
   }
 }

@@ -47,7 +47,17 @@ routes:
       headers:
         X-Forwarded-Host: "\${HOST}"
 
-  # Example 2: WebSocket proxy
+  # Example 2: Static file serving (for Vite build output)
+  # - path: "/*"
+  #   static: "./dist"  # Simple form
+  #   # OR advanced form:
+  #   # static:
+  #   #   root: "./dist"
+  #   #   fallback: "index.html"  # SPA mode
+  #   #   maxAge: 3600000  # 1 hour
+  #   #   etag: true
+
+  # Example 3: WebSocket proxy
   - path: "/ws"
     target: "ws://localhost:5000"
     ws: true

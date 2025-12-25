@@ -220,6 +220,57 @@ routes:
     changeOrigin: true
 ```
 
+#### Static File Serving
+
+Serve static files directly without proxying (useful for `vite build --watch` output):
+
+**Simple form:**
+```yaml
+routes:
+  - path: "/*"
+    static: "./dist"
+```
+
+**Advanced form with SPA support:**
+```yaml
+routes:
+  - path: "/*"
+    static:
+      root: "./dist"           # Directory to serve
+      fallback: "index.html"   # SPA fallback (for client-side routing)
+      index: "index.html"      # Default index file
+      maxAge: 3600000          # Cache duration in milliseconds (1 hour)
+      etag: true               # Enable ETag headers
+      dotfiles: "ignore"       # ignore | allow | deny
+```
+
+**Combined with API proxy:**
+```yaml
+routes:
+  # API requests go to backend
+  - path: "/api/*"
+    target: "http://localhost:4000"
+    pathRewrite:
+      "^/api": ""
+
+  # Static files from Vite build
+  - path: "/*"
+    static:
+      root: "./dist"
+      fallback: "index.html"  # SPA mode
+```
+
+**Use case: Vite build --watch**
+```bash
+# Terminal 1: Run Vite in build watch mode
+vite build --watch
+
+# Terminal 2: Run revx to serve the built files
+revx start
+```
+
+This avoids `CONTENT_LENGTH_MISMATCH` errors by serving pre-built static files instead of proxying to Vite dev server.
+
 #### Header Transformation
 
 ```yaml
