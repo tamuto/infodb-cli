@@ -23,27 +23,13 @@ export async function validateCommand(configFile: string, options: { verbose?: b
         logger.info(`  ${index + 1}. ${route.path}`);
         if (route.target) {
           logger.info(`     Target: ${route.target}`);
-        } else if (route.targets) {
-          logger.info(`     Targets: ${route.targets.length} (${route.strategy || 'round-robin'})`);
-          route.targets.forEach((target, i) => {
-            logger.info(`       ${i + 1}. ${target}`);
-          });
+          if (route.ws) {
+            logger.info(`     WebSocket: enabled`);
+          }
+        } else if (route.static) {
+          logger.info(`     Static: ${route.static}`);
         }
       });
-
-      if (config.middleware && config.middleware.length > 0) {
-        logger.info('');
-        logger.info('Middleware:');
-        config.middleware.forEach((mw, index) => {
-          const status = mw.enabled === false ? 'disabled' : 'enabled';
-          logger.info(`  ${index + 1}. ${mw.type} (${status})`);
-        });
-      }
-
-      if (config.ssl?.enabled) {
-        logger.info('');
-        logger.info('SSL: enabled');
-      }
     }
   } catch (error) {
     if (error instanceof Error) {

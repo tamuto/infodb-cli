@@ -11,9 +11,6 @@ server:
 
 # Global configuration
 global:
-  # Request timeout in milliseconds
-  timeout: 30000
-
   # Max concurrent sockets (can also be set here)
   # maxSockets: 256
 
@@ -28,7 +25,6 @@ global:
   logging:
     enabled: true
     format: "combined"  # combined | dev | common | short | tiny
-    level: "info"       # error | warn | info | debug
 
 # Route definitions
 routes:
@@ -38,74 +34,19 @@ routes:
     changeOrigin: true
     pathRewrite:
       "^/api": ""
-    options:
-      timeout: 5000
-      headers:
-        X-Forwarded-Host: "${HOST}"
 
-  # Example 2: Static file serving (for Vite build output)
-  # - path: "/*"
-  #   static: "./dist"  # Simple form
-  #   # OR advanced form:
-  #   # static:
-  #   #   root: "./dist"
-  #   #   fallback: "index.html"  # SPA mode
-  #   #   maxAge: 3600000  # 1 hour
-  #   #   etag: true
-
-  # Example 3: WebSocket proxy
+  # Example 2: WebSocket proxy (critical for HMR)
   - path: "/ws"
     target: "ws://localhost:5000"
     ws: true
     changeOrigin: true
 
-  # Example 3: Load balancing with multiple targets
-  - path: "/balanced/*"
-    targets:
-      - "http://localhost:8001"
-      - "http://localhost:8002"
-      - "http://localhost:8003"
-    strategy: "round-robin"  # round-robin | random | ip-hash
-    pathRewrite:
-      "^/balanced": ""
-    healthCheck:
-      enabled: true
-      interval: 30000
-      path: "/health"
-      timeout: 3000
+  # Example 3: Static file serving (for Vite build output)
+  - path: "/*"
+    static: "./dist"
 
-  # Example 4: Request/Response transformation
-  - path: "/transform/*"
-    target: "http://localhost:6000"
-    changeOrigin: true
-    transform:
-      request:
-        headers:
-          add:
-            X-API-Version: "v2"
-          remove:
-            - "Cookie"
-      response:
-        headers:
-          add:
-            X-Proxy-Server: "revx"
-          remove:
-            - "Server"
-
-# Middleware configuration
-middleware:
-  # Request ID middleware
-  - type: "requestId"
-    enabled: true
-    headerName: "X-Request-ID"
-
-  # Compression middleware
-  - type: "compression"
-    enabled: true
-    threshold: 1024
-
-# SSL/TLS settings (optional)
-# ssl:
-#   enabled: false
-#   key: "/path/to/private.key"
-#   cert: "/path/to/certificate.crt"
+  # Example 4: Proxy to Vite dev server
+  # - path: "/*"
+  #   target: "http://localhost:5173"
+  #   ws: true  # Enable WebSocket for HMR
+  #   changeOrigin: true

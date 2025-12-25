@@ -7,14 +7,12 @@ Reverse proxy CLI tool with YAML configuration. Built with Express and http-prox
 - YAML-based configuration
 - Simple reverse proxy setup
 - **Automatic route sorting** - Routes are automatically sorted by specificity (longest paths first)
-- Load balancing (Round-robin, Random, IP-hash)
-- WebSocket support
-- Request/Response header transformation
+- WebSocket support (critical for HMR)
+- Static file serving
 - CORS configuration
-- SSL/TLS support
-- Health checks
-- Request ID tracking
+- Path rewriting
 - Environment variable expansion
+- Optimized for development servers like Vite
 
 ## Installation
 
@@ -119,8 +117,6 @@ routes:
 
 ```yaml
 global:
-  timeout: 30000
-
   # Max concurrent sockets (default: 256)
   # Increase for better performance with dev servers like Vite
   maxSockets: 512
@@ -134,7 +130,6 @@ global:
   logging:
     enabled: true
     format: "combined"  # combined | dev | common | short | tiny
-    level: "info"       # error | warn | info | debug
 ```
 
 ### Performance Tuning
@@ -196,21 +191,9 @@ routes:
       "^/api": ""
 ```
 
-#### Load Balancing
-
-```yaml
-routes:
-  - path: "/balanced/*"
-    targets:
-      - "http://server1.example.com"
-      - "http://server2.example.com"
-      - "http://server3.example.com"
-    strategy: "round-robin"  # round-robin | random | ip-hash
-    pathRewrite:
-      "^/balanced": ""
-```
-
 #### WebSocket Proxy
+
+WebSocket support is critical for Hot Module Replacement (HMR) with development servers like Vite:
 
 ```yaml
 routes:
@@ -224,24 +207,10 @@ routes:
 
 Serve static files directly without proxying (useful for `vite build --watch` output):
 
-**Simple form:**
 ```yaml
 routes:
   - path: "/*"
     static: "./dist"
-```
-
-**Advanced form with SPA support:**
-```yaml
-routes:
-  - path: "/*"
-    static:
-      root: "./dist"           # Directory to serve
-      fallback: "index.html"   # SPA fallback (for client-side routing)
-      index: "index.html"      # Default index file
-      maxAge: 3600000          # Cache duration in milliseconds (1 hour)
-      etag: true               # Enable ETag headers
-      dotfiles: "ignore"       # ignore | allow | deny
 ```
 
 **Combined with API proxy:**
@@ -255,9 +224,7 @@ routes:
 
   # Static files from Vite build
   - path: "/*"
-    static:
-      root: "./dist"
-      fallback: "index.html"  # SPA mode
+    static: "./dist"
 ```
 
 **Use case: Vite build --watch**
@@ -271,64 +238,6 @@ revx start
 
 This avoids `CONTENT_LENGTH_MISMATCH` errors by serving pre-built static files instead of proxying to Vite dev server.
 
-#### Header Transformation
-
-```yaml
-routes:
-  - path: "/transform/*"
-    target: "http://backend.example.com"
-    transform:
-      request:
-        headers:
-          add:
-            X-API-Version: "v2"
-            X-Custom-Header: "value"
-          remove:
-            - "Cookie"
-      response:
-        headers:
-          add:
-            X-Proxy-Server: "revx"
-          remove:
-            - "Server"
-```
-
-#### Custom Options
-
-```yaml
-routes:
-  - path: "/api/*"
-    target: "http://api.example.com"
-    options:
-      timeout: 5000
-      followRedirects: true
-      headers:
-        X-Forwarded-Host: "${HOST}"
-```
-
-### Middleware
-
-```yaml
-middleware:
-  - type: "requestId"
-    enabled: true
-    headerName: "X-Request-ID"
-
-  - type: "compression"
-    enabled: true
-    threshold: 1024
-```
-
-### SSL/TLS
-
-```yaml
-ssl:
-  enabled: true
-  key: "/path/to/private.key"
-  cert: "/path/to/certificate.crt"
-  ca: "/path/to/ca.crt"  # Optional
-```
-
 ### Environment Variables
 
 Use `${VARIABLE_NAME}` syntax to reference environment variables:
@@ -340,15 +249,12 @@ server:
 routes:
   - path: "/api/*"
     target: "${API_URL}"
-    options:
-      headers:
-        Authorization: "Bearer ${API_TOKEN}"
 ```
 
 Then run:
 
 ```bash
-PORT=3000 API_URL=http://api.example.com API_TOKEN=secret revx start
+PORT=3000 API_URL=http://api.example.com revx start
 ```
 
 ## Examples
@@ -422,34 +328,35 @@ routes:
   # Proxy everything else to Vite dev server
   - path: "/*"
     target: "http://localhost:5173"
-    ws: true
+    ws: true  # Enable WebSocket for HMR
     changeOrigin: true
 ```
 
-### Production Load Balancer
+### Vite Build Watch Mode
 
 ```yaml
 server:
-  port: 443
-  name: "Production Load Balancer"
-
-ssl:
-  enabled: true
-  key: "/etc/ssl/private/server.key"
-  cert: "/etc/ssl/certs/server.crt"
+  port: 3000
 
 routes:
+  # Proxy API requests to backend
+  - path: "/api/*"
+    target: "http://localhost:4000"
+    pathRewrite:
+      "^/api": ""
+
+  # Serve static files built by Vite
   - path: "/*"
-    targets:
-      - "http://app-server-1:8080"
-      - "http://app-server-2:8080"
-      - "http://app-server-3:8080"
-    strategy: "round-robin"
-    healthCheck:
-      enabled: true
-      interval: 30000
-      path: "/health"
-      timeout: 3000
+    static: "./dist"
+```
+
+Run with:
+```bash
+# Terminal 1: Build and watch
+vite build --watch
+
+# Terminal 2: Serve with revx
+revx start
 ```
 
 ## Troubleshooting
@@ -505,7 +412,7 @@ If you experience slow loading or timeouts when proxying to Vite or similar dev 
 - Only use `pathRewrite` when you need to modify the path
 
 **Q: CORS errors**
-- Enable CORS in global config or per-route
+- Enable CORS in global config
 - Check the `origin` setting matches your client URL
 
 ## Development
