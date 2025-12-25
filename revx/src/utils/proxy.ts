@@ -72,6 +72,7 @@ export class ProxyManager {
 
   createProxyMiddleware(route: RouteConfig) {
     const options: Options = {
+      pathFilter: route.path,
       changeOrigin: route.changeOrigin ?? true,
       ws: route.ws ?? false,
       pathRewrite: route.pathRewrite,
