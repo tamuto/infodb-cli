@@ -87,7 +87,7 @@ function setupRoutes(
     }
 
     const proxyMiddleware = proxyManager.createProxyMiddleware(route);
-    app.use(route.path, proxyMiddleware);
+    app.use(proxyMiddleware);
   });
 
   app.get('/health', (req: Request, res: Response) => {
