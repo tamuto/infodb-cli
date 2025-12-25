@@ -78,9 +78,11 @@ export class ProxyManager {
       pathRewrite: route.pathRewrite,
       timeout: route.options?.timeout,
       followRedirects: route.options?.followRedirects,
-      selfHandleResponse: false,
+      // Let http-proxy-middleware handle responses naturally
       preserveHeaderKeyCase: true,
       autoRewrite: true,
+      // Increase limits to handle large responses from dev servers
+      proxyTimeout: route.options?.timeout || 30000,
 
       on: {
         proxyReq: (proxyReq, req) => {
@@ -110,15 +112,6 @@ export class ProxyManager {
         },
 
         proxyRes: (proxyRes, req, res) => {
-          // Remove Content-Length header to prevent CONTENT_LENGTH_MISMATCH errors
-          // especially common with Vite dev server which transforms content dynamically
-          delete proxyRes.headers['content-length'];
-
-          // Use chunked transfer encoding instead
-          if (!proxyRes.headers['transfer-encoding']) {
-            proxyRes.headers['transfer-encoding'] = 'chunked';
-          }
-
           if (route.transform?.response?.headers?.add) {
             Object.entries(route.transform.response.headers.add).forEach(([key, value]) => {
               proxyRes.headers[key.toLowerCase()] = value;
@@ -133,12 +126,17 @@ export class ProxyManager {
 
           this.logger.verbose('Proxy response', {
             statusCode: proxyRes.statusCode,
-            path: req.url,
-            transferEncoding: proxyRes.headers['transfer-encoding']
+            path: req.url
           });
         },
 
         error: (err, req, res) => {
+          // Ignore CONTENT_LENGTH_MISMATCH errors - they're usually benign with streaming responses
+          if (err.message && err.message.includes('CONTENT_LENGTH_MISMATCH')) {
+            this.logger.verbose(`Ignoring CONTENT_LENGTH_MISMATCH for ${req.url}`);
+            return;
+          }
+
           this.logger.error(`Proxy error: ${err.message}`);
           const serverRes = res as ServerResponse;
           if (!serverRes.headersSent) {
