@@ -236,7 +236,7 @@ vite build --watch
 revx start
 ```
 
-This avoids `CONTENT_LENGTH_MISMATCH` errors by serving pre-built static files instead of proxying to Vite dev server.
+This serves pre-built static files, avoiding proxy-related errors that can occur with Vite dev server.
 
 ### Environment Variables
 
@@ -361,30 +361,21 @@ revx start
 
 ## Troubleshooting
 
-### CONTENT_LENGTH_MISMATCH Error
+### Vite Development Server Issues
 
-The proxy automatically handles `CONTENT_LENGTH_MISMATCH` errors (common with Vite dev server) by:
+When proxying directly to Vite dev server, you may encounter errors due to dynamic content transformation. For a more stable setup, consider using `vite build --watch` with static file serving instead:
 
-- **Silently ignoring these errors** in the error handler
-- CONTENT_LENGTH_MISMATCH errors are typically benign with streaming responses
-- The content is usually already successfully delivered to the client
+```bash
+# Terminal 1: Build and watch
+vite build --watch
 
-This is especially important for Vite, which dynamically transforms content (ESM conversion, HMR, etc.), causing the actual response size to differ from the original Content-Length header.
+# Terminal 2: Serve with revx
+revx start
+```
 
-**Technical details:**
-- The error handler checks for `CONTENT_LENGTH_MISMATCH` in error messages
-- These errors are logged only in verbose mode and don't interrupt the response
-- The response has usually completed successfully before the error is detected
-- Works transparently without configuration needed
+This approach serves pre-built files and avoids proxy-related issues.
 
-**Why this works:**
-- Vite sends Content-Length based on original file size
-- Vite then transforms the content (ESM imports, HMR injection)
-- The transformed content has a different size
-- By the time the mismatch is detected, the client has already received the content
-- Ignoring the error prevents unnecessary 502 responses
-
-### Performance Issues with Vite or Dev Servers
+### Performance Issues with Dev Servers
 
 If you experience slow loading or timeouts when proxying to Vite or similar dev servers:
 

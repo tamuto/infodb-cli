@@ -33,12 +33,6 @@ export class ProxyManager {
         },
 
         error: (err, req, res) => {
-          // Ignore CONTENT_LENGTH_MISMATCH errors - they're usually benign
-          if (err.message && err.message.includes('CONTENT_LENGTH_MISMATCH')) {
-            this.logger.verbose(`Ignoring CONTENT_LENGTH_MISMATCH for ${req.url}`);
-            return;
-          }
-
           this.logger.error(`Proxy error: ${err.message}`);
           const serverRes = res as ServerResponse;
           if (!serverRes.headersSent) {
