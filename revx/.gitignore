@@ -1,0 +1,10 @@
+node_modules
+dist
+*.log
+.DS_Store
+.env
+*.yaml
+!sample/*.yaml
+coverage
+.nyc_output
+*.tgz

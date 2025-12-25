@@ -1,0 +1,15 @@
+# revx.simple.yaml - Simple Reverse Proxy Configuration
+
+server:
+  port: 3000
+
+routes:
+  - path: "/api/*"
+    target: "http://localhost:4000"
+    pathRewrite:
+      "^/api": ""
+
+  - path: "/auth/*"
+    target: "http://localhost:5000"
+    pathRewrite:
+      "^/auth": ""
