@@ -9,11 +9,17 @@ server:
   port: 3000
   host: 0.0.0.0
   name: "My Reverse Proxy"
+  # Max concurrent sockets (useful for Vite and other dev servers)
+  # Default: 256
+  # maxSockets: 512
 
 # Global configuration
 global:
   # Request timeout in milliseconds
   timeout: 30000
+
+  # Max concurrent sockets (can also be set here)
+  # maxSockets: 256
 
   # CORS settings
   cors:

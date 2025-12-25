@@ -1,6 +1,6 @@
 {
   "name": "@infodb/revx",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Reverse proxy CLI tool with YAML configuration",
   "homepage": "https://github.com/tamuto/infodb-cli/",
   "bugs": "https://github.com/tamuto/infodb-cli/issues",

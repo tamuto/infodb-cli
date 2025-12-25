@@ -121,6 +121,10 @@ routes:
 global:
   timeout: 30000
 
+  # Max concurrent sockets (default: 256)
+  # Increase for better performance with dev servers like Vite
+  maxSockets: 512
+
   cors:
     enabled: true
     origin: "*"
@@ -132,6 +136,31 @@ global:
     format: "combined"  # combined | dev | common | short | tiny
     level: "info"       # error | warn | info | debug
 ```
+
+### Performance Tuning
+
+#### Max Sockets Configuration
+
+When proxying to development servers like Vite that serve many files concurrently, you may need to increase the maximum number of concurrent sockets:
+
+```yaml
+server:
+  maxSockets: 512  # Can be set at server level
+
+# OR
+
+global:
+  maxSockets: 512  # Can be set globally
+```
+
+**Default**: 256
+
+**When to increase**:
+- Proxying to Vite or similar dev servers
+- Serving applications with many static assets
+- High concurrent request scenarios
+
+**Note**: The `server.maxSockets` takes precedence over `global.maxSockets` if both are set.
 
 ### Route Configuration
 
@@ -319,6 +348,33 @@ routes:
     ws: true
 ```
 
+### Vite Development Server Proxy
+
+```yaml
+server:
+  port: 3000
+  # Increase max sockets for Vite's many concurrent requests
+  maxSockets: 512
+
+global:
+  cors:
+    enabled: true
+    origin: "http://localhost:5173"
+
+routes:
+  # Proxy API requests to backend
+  - path: "/api/*"
+    target: "http://localhost:4000"
+    pathRewrite:
+      "^/api": ""
+
+  # Proxy everything else to Vite dev server
+  - path: "/*"
+    target: "http://localhost:5173"
+    ws: true
+    changeOrigin: true
+```
+
 ### Production Load Balancer
 
 ```yaml
@@ -344,6 +400,49 @@ routes:
       path: "/health"
       timeout: 3000
 ```
+
+## Troubleshooting
+
+### CONTENT_LENGTH_MISMATCH Error
+
+If you encounter `CONTENT_LENGTH_MISMATCH` errors, the proxy is configured to automatically handle this by:
+
+- Using `selfHandleResponse: false` (default behavior)
+- Preserving header key case with `preserveHeaderKeyCase: true`
+- Auto-rewriting headers with `autoRewrite: true`
+
+These settings are built-in and should handle most cases automatically.
+
+### Performance Issues with Vite or Dev Servers
+
+If you experience slow loading or timeouts when proxying to Vite or similar dev servers:
+
+1. **Increase max sockets**:
+   ```yaml
+   server:
+     maxSockets: 512  # or higher
+   ```
+
+2. **Use verbose mode** to check socket configuration:
+   ```bash
+   revx start --verbose
+   ```
+
+3. **Check the log output** for "Max sockets configured: XXX"
+
+### Common Issues
+
+**Q: Routes not matching correctly**
+- Routes are automatically sorted by specificity (longest first)
+- Use `--verbose` mode to see the sorted route order
+
+**Q: Path not being rewritten**
+- `pathRewrite` is optional; paths are preserved by default
+- Only use `pathRewrite` when you need to modify the path
+
+**Q: CORS errors**
+- Enable CORS in global config or per-route
+- Check the `origin` setting matches your client URL
 
 ## Development
 

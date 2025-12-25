@@ -27,12 +27,14 @@ export interface GlobalConfig {
   cors?: CorsConfig;
   logging?: LoggingConfig;
   rateLimit?: RateLimitConfig;
+  maxSockets?: number;
 }
 
 export interface ServerConfig {
   port: number;
   host?: string;
   name?: string;
+  maxSockets?: number;
 }
 
 export interface RouteOptions {
