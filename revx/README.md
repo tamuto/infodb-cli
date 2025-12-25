@@ -405,13 +405,18 @@ routes:
 
 ### CONTENT_LENGTH_MISMATCH Error
 
-If you encounter `CONTENT_LENGTH_MISMATCH` errors, the proxy is configured to automatically handle this by:
+The proxy automatically prevents `CONTENT_LENGTH_MISMATCH` errors (common with Vite dev server) by:
 
-- Using `selfHandleResponse: false` (default behavior)
-- Preserving header key case with `preserveHeaderKeyCase: true`
-- Auto-rewriting headers with `autoRewrite: true`
+- **Removing Content-Length header** from proxied responses
+- **Using chunked transfer encoding** instead (`Transfer-Encoding: chunked`)
+- This allows the content to be streamed without size constraints
 
-These settings are built-in and should handle most cases automatically.
+This is especially important for Vite, which dynamically transforms content (ESM conversion, HMR, etc.), causing the actual response size to differ from the original Content-Length header.
+
+**Technical details:**
+- Content-Length header is removed in the `proxyRes` event
+- Transfer-Encoding: chunked is set automatically if not present
+- Works transparently without configuration needed
 
 ### Performance Issues with Vite or Dev Servers
 
