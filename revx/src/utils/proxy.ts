@@ -110,6 +110,15 @@ export class ProxyManager {
         },
 
         proxyRes: (proxyRes, req, res) => {
+          // Remove Content-Length header to prevent CONTENT_LENGTH_MISMATCH errors
+          // especially common with Vite dev server which transforms content dynamically
+          delete proxyRes.headers['content-length'];
+
+          // Use chunked transfer encoding instead
+          if (!proxyRes.headers['transfer-encoding']) {
+            proxyRes.headers['transfer-encoding'] = 'chunked';
+          }
+
           if (route.transform?.response?.headers?.add) {
             Object.entries(route.transform.response.headers.add).forEach(([key, value]) => {
               proxyRes.headers[key.toLowerCase()] = value;
@@ -124,7 +133,8 @@ export class ProxyManager {
 
           this.logger.verbose('Proxy response', {
             statusCode: proxyRes.statusCode,
-            path: req.url
+            path: req.url,
+            transferEncoding: proxyRes.headers['transfer-encoding']
           });
         },
 
