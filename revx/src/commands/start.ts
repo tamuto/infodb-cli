@@ -1,6 +1,8 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
+import http from 'http';
+import https from 'https';
 import { createServer, Server as HttpServer } from 'http';
 import { createServer as createHttpsServer, Server as HttpsServer } from 'https';
 import { readFileSync } from 'fs';
@@ -16,6 +18,12 @@ export async function startCommand(configFile: string = 'revx.yaml', options: { 
   try {
     logger.info(`Loading configuration from: ${configFile}`);
     const config = configLoader.load(configFile);
+
+    // Configure max sockets for better performance with dev servers like Vite
+    const maxSockets = config.server.maxSockets || config.global?.maxSockets || 256;
+    http.globalAgent.maxSockets = maxSockets;
+    https.globalAgent.maxSockets = maxSockets;
+    logger.verbose(`Max sockets configured: ${maxSockets}`);
 
     const app = express();
     const proxyManager = new ProxyManager(logger);

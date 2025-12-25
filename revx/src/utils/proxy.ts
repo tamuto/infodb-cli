@@ -78,6 +78,9 @@ export class ProxyManager {
       pathRewrite: route.pathRewrite,
       timeout: route.options?.timeout,
       followRedirects: route.options?.followRedirects,
+      selfHandleResponse: false,
+      preserveHeaderKeyCase: true,
+      autoRewrite: true,
 
       on: {
         proxyReq: (proxyReq, req) => {

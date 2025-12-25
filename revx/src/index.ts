@@ -10,7 +10,7 @@ const program = new Command();
 program
   .name('revx')
   .description('Reverse proxy CLI tool with YAML configuration')
-  .version('0.1.1');
+  .version('0.2.0');
 
 program
   .command('start')
