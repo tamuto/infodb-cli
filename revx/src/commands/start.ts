@@ -130,12 +130,17 @@ async function startServer(
     server.on('upgrade', (req, socket, head) => {
       const urlPath = req.url || '/';
 
+      logger.info(`WebSocket upgrade request: ${urlPath}`);
+
       // First, check if this is a Vite HMR WebSocket request
       const viteServers = viteManager.getAllServers();
+      logger.info(`Vite servers count: ${viteServers.length}`);
+
       for (const { path, server: viteServer } of viteServers) {
+        logger.info(`Checking Vite route: ${path} against URL: ${urlPath}`);
         // Vite HMR WebSocket connections are typically at the base path or /@vite/client
         if (urlPath.startsWith(path)) {
-          logger.verbose(`Vite HMR WebSocket upgrade: ${urlPath} (route: ${path})`);
+          logger.info(`Vite HMR WebSocket upgrade: ${urlPath} (route: ${path})`);
           // Access the underlying ws WebSocketServer instance
           const wss = (viteServer.ws as any).wss;
           if (wss && wss.handleUpgrade) {
@@ -143,6 +148,8 @@ async function startServer(
               wss.emit('connection', ws, req);
             });
             return;
+          } else {
+            logger.error(`Vite WebSocket server not available for route: ${path}`);
           }
         }
       }
