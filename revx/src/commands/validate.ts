@@ -28,6 +28,14 @@ export async function validateCommand(configFile: string, options: { verbose?: b
           }
         } else if (route.static) {
           logger.info(`     Static: ${route.static}`);
+        } else if (route.vite) {
+          logger.info(`     Vite: ${route.vite.root}`);
+          if (route.vite.base) {
+            logger.info(`     Base: ${route.vite.base}`);
+          }
+          if (route.vite.configFile) {
+            logger.info(`     Config: ${route.vite.configFile}`);
+          }
         }
       });
     }

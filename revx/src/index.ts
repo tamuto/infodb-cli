@@ -9,8 +9,8 @@ const program = new Command();
 
 program
   .name('revx')
-  .description('Reverse proxy CLI tool with YAML configuration')
-  .version('0.4.0');
+  .description('Multi-Vite project development server')
+  .version('1.0.0');
 
 program
   .command('start')
@@ -28,8 +28,9 @@ program
 
 program
   .command('init')
-  .description('Create a sample configuration file')
-  .option('--simple', 'Create a simple configuration file')
+  .description('Create a sample configuration file (default: Vite multi-project)')
+  .option('--simple', 'Create a simple Vite proxy configuration')
+  .option('--proxy', 'Create a reverse proxy configuration')
   .option('--output <file>', 'Output file path', 'revx.yaml')
   .option('--verbose', 'Verbose output')
   .action(initCommand);

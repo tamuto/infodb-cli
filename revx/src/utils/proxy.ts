@@ -1,12 +1,19 @@
-import { createProxyMiddleware, Options } from 'http-proxy-middleware';
+import { createProxyMiddleware, Options, RequestHandler } from 'http-proxy-middleware';
 import { RouteConfig } from './config.js';
 import { Logger } from './logger.js';
 import { ServerResponse } from 'http';
 
+export interface ProxyInfo {
+  middleware: RequestHandler;
+  route: RouteConfig;
+}
+
 export class ProxyManager {
+  private proxies: ProxyInfo[] = [];
+
   constructor(private logger: Logger) {}
 
-  createProxyMiddleware(route: RouteConfig) {
+  createProxyMiddleware(route: RouteConfig): RequestHandler {
     const options: Options = {
       pathFilter: route.path,
       target: route.target,
@@ -46,7 +53,20 @@ export class ProxyManager {
       }
     };
 
+    const middleware = createProxyMiddleware(options);
+
+    // Store proxy info for WebSocket upgrade handling
+    this.proxies.push({ middleware, route });
+
     this.logger.info(`Proxy configured: ${route.path} -> ${route.target}`);
-    return createProxyMiddleware(options);
+    if (route.ws) {
+      this.logger.verbose(`WebSocket enabled for: ${route.path}`);
+    }
+
+    return middleware;
+  }
+
+  getProxies(): ProxyInfo[] {
+    return this.proxies;
   }
 }

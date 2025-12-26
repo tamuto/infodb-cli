@@ -1,0 +1,63 @@
+# revx.mixed.yaml - Mixed Development Servers Example
+# Use this when you have Vite apps alongside webpack/Parcel/other dev servers
+
+# Server settings
+server:
+  port: 3000
+  host: 0.0.0.0
+  name: "Mixed Dev Server (Vite + webpack)"
+  maxSockets: 512
+
+# Global configuration
+global:
+  cors:
+    enabled: true
+    origin: "*"
+
+  logging:
+    enabled: true
+    format: "dev"
+
+# Route definitions
+routes:
+  # New Vite app (native middleware)
+  - path: "/new-app"
+    vite:
+      root: "./apps/new-app"
+      base: "/new-app"
+
+  # Another Vite app
+  - path: "/dashboard"
+    vite:
+      root: "./apps/dashboard"
+      base: "/dashboard"
+
+  # Legacy webpack dev server (reverse proxy)
+  - path: "/legacy/*"
+    target: "http://localhost:8080"
+    ws: true  # Enable WebSocket for webpack HMR
+    changeOrigin: true
+
+  # Parcel dev server (reverse proxy)
+  - path: "/old-app/*"
+    target: "http://localhost:1234"
+    ws: true
+    changeOrigin: true
+
+  # Backend API
+  - path: "/api/*"
+    target: "http://localhost:4000"
+    changeOrigin: true
+    pathRewrite:
+      "^/api": ""
+
+  # Static documentation
+  - path: "/docs"
+    static: "./public/docs"
+
+# Usage:
+# 1. Start webpack dev server: cd apps/legacy && npm run dev (on :8080)
+# 2. Start Parcel: cd apps/old-app && npm run dev (on :1234)
+# 3. Start backend API: cd api && npm run dev (on :4000)
+# 4. Start revx: revx start revx.mixed.yaml
+# 5. Access all apps at http://localhost:3000
