@@ -11,6 +11,7 @@
 | [`lctl`](https://github.com/tamuto/infodb-cli/tree/main/lctl) | AWS Lambda関数を管理するためのCLIツール | [![npm version](https://img.shields.io/npm/v/@infodb/lctl.svg)](https://www.npmjs.com/package/@infodb/lctl) |
 | [`licscan`](https://github.com/tamuto/infodb-cli/tree/main/licscan) | ライセンスと著作権スキャナー | [![npm version](https://img.shields.io/npm/v/@infodb/licscan.svg)](https://www.npmjs.com/package/@infodb/licscan) |
 | [`tfme`](https://github.com/tamuto/infodb-cli/tree/main/tfme) | Terraform schemaをYAMLに変換し、ドキュメントをダウンロード | [![npm version](https://img.shields.io/npm/v/@infodb/tfme.svg)](https://www.npmjs.com/package/@infodb/tfme) |
+| [`revx`](https://github.com/tamuto/infodb-cli/tree/main/revx) | 複数のViteプロジェクトを単一ポートでホストする開発サーバー | [![npm version](https://img.shields.io/npm/v/@infodb/revx.svg)](https://www.npmjs.com/package/@infodb/revx) |
 
 ## 📄 ライセンス
 
