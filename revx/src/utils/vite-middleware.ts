@@ -74,4 +74,11 @@ export class ViteMiddlewareManager {
   getServerCount(): number {
     return this.viteServers.size;
   }
+
+  getAllServers(): Array<{ path: string; server: ViteDevServer }> {
+    return Array.from(this.viteServers.entries()).map(([path, server]) => ({
+      path,
+      server,
+    }));
+  }
 }
