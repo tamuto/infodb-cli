@@ -126,14 +126,32 @@ async function startServer(
 
     const server = createServer(app);
 
-    // Handle WebSocket upgrade requests for proxied routes
+    // Handle WebSocket upgrade requests for Vite HMR and proxied routes
     server.on('upgrade', (req, socket, head) => {
-      const proxies = proxyManager.getProxies();
+      const urlPath = req.url || '/';
 
+      // First, check if this is a Vite HMR WebSocket request
+      const viteServers = viteManager.getAllServers();
+      for (const { path, server: viteServer } of viteServers) {
+        // Vite HMR WebSocket connections are typically at the base path or /@vite/client
+        if (urlPath.startsWith(path)) {
+          logger.verbose(`Vite HMR WebSocket upgrade: ${urlPath} (route: ${path})`);
+          // Access the underlying ws WebSocketServer instance
+          const wss = (viteServer.ws as any).wss;
+          if (wss && wss.handleUpgrade) {
+            wss.handleUpgrade(req, socket, head, (ws: any) => {
+              wss.emit('connection', ws, req);
+            });
+            return;
+          }
+        }
+      }
+
+      // Then check for proxied WebSocket routes
+      const proxies = proxyManager.getProxies();
       for (const { middleware, route } of proxies) {
         if (route.ws) {
           // Check if the request URL matches the proxy route
-          const urlPath = req.url || '/';
           const routePath = route.path.replace(/\/\*$/, ''); // Remove trailing /*
 
           if (urlPath.startsWith(routePath)) {
@@ -145,7 +163,7 @@ async function startServer(
         }
       }
 
-      // If no proxy matched, close the socket
+      // If no route matched, close the socket
       logger.verbose(`WebSocket upgrade failed: no matching route for ${req.url}`);
       socket.destroy();
     });
