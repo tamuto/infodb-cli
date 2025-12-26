@@ -26,10 +26,18 @@ export async function startCommand(configFile: string = 'revx.yaml', options: { 
 
     const app = express();
     const proxyManager = new ProxyManager(logger);
+    const port = config.server.port;
+    const host = config.server.host || '0.0.0.0';
+
+    // Create HTTP server first (but don't listen yet)
+    const server = createServer(app);
+
+    // Set server info for Vite HMR configuration with HTTP server instance
+    viteManager.setServerInfo(port, host, server);
 
     setupMiddleware(app, config, logger);
     await setupRoutes(app, config, proxyManager, viteManager, logger);
-    await startServer(app, config, viteManager, proxyManager, logger);
+    await startServerListen(server, config, viteManager, proxyManager, logger);
   } catch (error) {
     if (error instanceof Error) {
       logger.error(`Failed to start server: ${error.message}`);
@@ -113,8 +121,8 @@ async function setupRoutes(
   });
 }
 
-async function startServer(
-  app: express.Application,
+async function startServerListen(
+  server: http.Server,
   config: RevxConfig,
   viteManager: ViteMiddlewareManager,
   proxyManager: ProxyManager,
@@ -124,37 +132,14 @@ async function startServer(
     const port = config.server.port;
     const host = config.server.host || '0.0.0.0';
 
-    const server = createServer(app);
-
-    // Handle WebSocket upgrade requests for Vite HMR and proxied routes
+    // Handle WebSocket upgrade requests for proxied routes
+    // Note: Vite HMR WebSocket is now handled automatically by Vite using the parent HTTP server
     server.on('upgrade', (req, socket, head) => {
       const urlPath = req.url || '/';
 
-      logger.info(`WebSocket upgrade request: ${urlPath}`);
+      logger.verbose(`WebSocket upgrade request: ${urlPath}`);
 
-      // First, check if this is a Vite HMR WebSocket request
-      const viteServers = viteManager.getAllServers();
-      logger.info(`Vite servers count: ${viteServers.length}`);
-
-      for (const { path, server: viteServer } of viteServers) {
-        logger.info(`Checking Vite route: ${path} against URL: ${urlPath}`);
-        // Vite HMR WebSocket connections are typically at the base path or /@vite/client
-        if (urlPath.startsWith(path)) {
-          logger.info(`Vite HMR WebSocket upgrade: ${urlPath} (route: ${path})`);
-          // Access the underlying ws WebSocketServer instance
-          const wss = (viteServer.ws as any).wss;
-          if (wss && wss.handleUpgrade) {
-            wss.handleUpgrade(req, socket, head, (ws: any) => {
-              wss.emit('connection', ws, req);
-            });
-            return;
-          } else {
-            logger.error(`Vite WebSocket server not available for route: ${path}`);
-          }
-        }
-      }
-
-      // Then check for proxied WebSocket routes
+      // Check for proxied WebSocket routes
       const proxies = proxyManager.getProxies();
       for (const { middleware, route } of proxies) {
         if (route.ws) {
