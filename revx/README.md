@@ -1,57 +1,123 @@
 # @infodb/revx
 
-Reverse proxy CLI tool with YAML configuration. Built with Express and http-proxy-middleware.
+**Host multiple Vite projects on a single port with unified routing.**
+
+Perfect for monorepo development - run all your Vite apps, backend APIs, and other dev servers together with native HMR support.
+
+## Why revx?
+
+Development in a monorepo with multiple Vite projects is painful:
+- Each Vite app runs on a different port (3000, 3001, 3002...)
+- Cross-app navigation requires hardcoded ports
+- Cookie/session sharing is complicated
+- CORS issues everywhere
+
+**revx solves this** by using Vite's middleware mode to host everything on one port with path-based routing:
+
+```
+http://localhost:3000/app1   → Vite Project 1 (native HMR)
+http://localhost:3000/app2   → Vite Project 2 (native HMR)
+http://localhost:3000/api    → Your Backend API
+http://localhost:3000/legacy → webpack dev server (via proxy)
+```
 
 ## Features
 
-- YAML-based configuration
-- Simple reverse proxy setup
-- **Automatic route sorting** - Routes are automatically sorted by specificity (longest paths first)
-- WebSocket support (critical for HMR)
-- Static file serving
-- CORS configuration
-- Path rewriting
-- Environment variable expansion
-- Optimized for development servers like Vite
+- **🎯 Primary: Multi-Vite hosting** - Native Vite integration with full HMR support
+- **🔌 Reverse proxy** - Integrate webpack, Parcel, or any other dev server
+- **📁 Static file serving** - Serve built assets or documentation
+- **🎨 YAML configuration** - Simple, declarative routing
+- **⚡ Automatic route sorting** - Routes prioritized by specificity
+- **🌐 CORS & environment variables** - Full control over cross-origin and config
 
 ## Installation
+
+### Option 1: Install as dev dependency (Recommended)
+
+```bash
+npm install -D @infodb/revx
+# or
+pnpm add -D @infodb/revx
+```
+
+Then add to package.json scripts:
+```json
+{
+  "scripts": {
+    "dev": "revx start",
+    "dev:verbose": "revx start --verbose"
+  }
+}
+```
+
+### Option 2: Use with npx/pnpx (No installation)
+
+```bash
+npx @infodb/revx start
+# or
+pnpx @infodb/revx start
+```
+
+Good for trying out revx, but slower on repeated runs.
+
+### Option 3: Global installation
 
 ```bash
 npm install -g @infodb/revx
 # or
 pnpm add -g @infodb/revx
-# or
-npx @infodb/revx
 ```
 
 ## Quick Start
 
-1. Create a configuration file:
+1. Install revx in your monorepo:
 
 ```bash
-revx init
+pnpm add -D @infodb/revx
 ```
 
-This creates a `revx.yaml` file with example configuration.
+2. Create a configuration file:
 
-2. Edit `revx.yaml` to configure your routes:
+```bash
+pnpm revx init
+```
+
+This creates a `revx.yaml` file with Vite multi-project configuration.
+
+3. Edit `revx.yaml` to point to your Vite projects:
 
 ```yaml
 server:
   port: 3000
+  maxSockets: 512  # Important for Vite performance
 
 routes:
+  # Your Vite apps
+  - path: "/app1"
+    vite:
+      root: "./apps/app1"
+      base: "/app1"
+
+  - path: "/app2"
+    vite:
+      root: "./apps/app2"
+      base: "/app2"
+
+  # Backend API
   - path: "/api/*"
     target: "http://localhost:4000"
     pathRewrite:
       "^/api": ""
 ```
 
-3. Start the proxy server:
+4. Start the unified dev server:
 
 ```bash
-revx start
+pnpm revx start
+# or add to package.json scripts and run: pnpm dev
 ```
+
+Now all your apps are available at `http://localhost:3000` with full HMR! 🎉
 
 ## Commands
 
@@ -189,6 +255,46 @@ routes:
     changeOrigin: true
     pathRewrite:
       "^/api": ""
+```
+
+#### Vite Middleware (NEW!)
+
+Native Vite integration using middleware mode - the best way to serve multiple Vite projects:
+
+```yaml
+routes:
+  - path: "/app1"
+    vite:
+      root: "./projects/app1"
+      base: "/app1"
+      configFile: "./projects/app1/vite.config.ts"  # optional
+```
+
+**Why use Vite middleware instead of proxy?**
+- Full HMR support without WebSocket configuration
+- No proxy overhead - native Vite performance
+- Multiple Vite projects on a single port
+- Better error messages and development experience
+
+**Requirements:**
+- Vite must be installed: `npm install vite` or `pnpm add vite`
+- Each Vite project must have its own directory with a valid configuration
+
+**Multiple Vite projects example:**
+```yaml
+routes:
+  - path: "/dashboard"
+    vite:
+      root: "./apps/dashboard"
+      base: "/dashboard"
+
+  - path: "/admin"
+    vite:
+      root: "./apps/admin"
+      base: "/admin"
+
+  - path: "/api/*"
+    target: "http://localhost:4000"
 ```
 
 #### WebSocket Proxy
@@ -332,6 +438,106 @@ routes:
     changeOrigin: true
 ```
 
+### Multi-Vite Project Setup (Recommended)
+
+```yaml
+server:
+  port: 3000
+  name: "Multi-App Dev Server"
+  maxSockets: 512
+
+global:
+  cors:
+    enabled: true
+    origin: "*"
+
+routes:
+  # App 1 - Customer Portal (Vite)
+  - path: "/portal"
+    vite:
+      root: "./apps/portal"
+      base: "/portal"
+
+  # App 2 - Admin Dashboard (Vite)
+  - path: "/admin"
+    vite:
+      root: "./apps/admin"
+      base: "/admin"
+
+  # Shared API backend
+  - path: "/api/*"
+    target: "http://localhost:4000"
+    pathRewrite:
+      "^/api": ""
+```
+
+This setup allows you to:
+- Run multiple Vite projects on one port
+- Share a single backend API across all apps
+- Get full HMR support for all apps
+- Develop in a monorepo-friendly way
+
+### Mixed Development Servers (Vite + webpack)
+
+Migrate gradually or mix different build tools:
+
+```yaml
+server:
+  port: 3000
+  maxSockets: 512
+
+routes:
+  # New app - using Vite
+  - path: "/new-app"
+    vite:
+      root: "./apps/new-app"
+      base: "/new-app"
+
+  # Legacy app - still on webpack dev server
+  - path: "/legacy/*"
+    target: "http://localhost:8080"
+    ws: true  # Enable WebSocket for webpack HMR
+    changeOrigin: true
+
+  # Another legacy app - using Parcel
+  - path: "/old-dashboard/*"
+    target: "http://localhost:1234"
+    ws: true
+    changeOrigin: true
+
+  # Backend API
+  - path: "/api/*"
+    target: "http://localhost:4000"
+    pathRewrite:
+      "^/api": ""
+
+  # Static documentation
+  - path: "/docs"
+    static: "./public/docs"
+```
+
+**Usage:**
+```bash
+# Terminal 1: Start webpack dev server
+cd apps/legacy && npm run dev  # runs on :8080
+
+# Terminal 2: Start Parcel
+cd apps/old-dashboard && npm run dev  # runs on :1234
+
+# Terminal 3: Start backend
+cd api && npm run dev  # runs on :4000
+
+# Terminal 4: Start revx (unifies everything)
+npx revx start
+```
+
+Now access everything at `http://localhost:3000`:
+- `/new-app` - Vite with native HMR ⚡
+- `/legacy` - webpack via proxy 🔌
+- `/old-dashboard` - Parcel via proxy 🔌
+- `/api` - Backend API 🔌
+- `/docs` - Static files 📁
+
 ### Vite Build Watch Mode
 
 ```yaml
@@ -361,19 +567,60 @@ revx start
 
 ## Troubleshooting
 
-### Vite Development Server Issues
+### When to use each route type?
 
-When proxying directly to Vite dev server, you may encounter errors due to dynamic content transformation. For a more stable setup, consider using `vite build --watch` with static file serving instead:
-
-```bash
-# Terminal 1: Build and watch
-vite build --watch
-
-# Terminal 2: Serve with revx
-revx start
+**Vite middleware (`vite` config) - RECOMMENDED for Vite projects:**
+```yaml
+- path: "/app"
+  vite:
+    root: "./apps/myapp"
 ```
+- ✅ Best for: Your own Vite projects in the monorepo
+- ✅ Native HMR with no configuration
+- ✅ No proxy overhead
+- ✅ Full Vite dev server features
 
-This approach serves pre-built files and avoids proxy-related issues.
+**Reverse proxy (`target` config) - For external/non-Vite servers:**
+```yaml
+- path: "/legacy"
+  target: "http://localhost:8080"
+  ws: true
+```
+- ✅ Best for: webpack, Parcel, external APIs, legacy apps
+- ✅ Preserve HMR via WebSocket proxy
+- ✅ Don't need to modify the target server
+
+**Static files (`static` config) - For built assets:**
+```yaml
+- path: "/docs"
+  static: "./dist"
+```
+- ✅ Best for: Documentation, pre-built assets, `vite build --watch` output
+- ✅ No processing overhead
+- ✅ Production-like serving
+
+### Common Issues
+
+**Error: "Vite root directory not found"**
+- Check that the `root` path in your config exists
+- Use relative paths from where you run `revx start`
+- Example: If config is in project root, use `./apps/myapp` not `/apps/myapp`
+
+**Multiple Vite servers slow to start**
+- This is normal - each Vite server initializes independently
+- Use `--verbose` to see progress
+- First startup is slower (dependency pre-bundling)
+
+**HMR not working for proxied webpack app**
+- Make sure `ws: true` is set in the route config
+- Check that the webpack dev server is actually running
+- Verify WebSocket connection in browser dev tools
+- No additional webpack configuration needed - revx handles WebSocket upgrade automatically
+
+**Does webpack need special configuration?**
+- No! Just add `ws: true` in revx config
+- revx automatically handles WebSocket upgrade requests
+- Your existing webpack dev server config works as-is
 
 ### Performance Issues with Dev Servers
 

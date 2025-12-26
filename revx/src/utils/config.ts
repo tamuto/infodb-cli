@@ -29,10 +29,17 @@ export interface ServerConfig {
   maxSockets?: number;
 }
 
+export interface ViteConfig {
+  root: string;
+  base?: string;
+  configFile?: string;
+}
+
 export interface RouteConfig {
   path: string;
   target?: string;
   static?: string;
+  vite?: ViteConfig;
   changeOrigin?: boolean;
   pathRewrite?: Record<string, string>;
   ws?: boolean;
@@ -144,13 +151,20 @@ export class ConfigLoader {
 
     const hasTarget = !!route.target;
     const hasStatic = !!route.static;
+    const hasVite = !!route.vite;
 
-    if (!hasTarget && !hasStatic) {
-      throw new Error(`Route ${route.path} must have either target or static`);
+    const routeTypes = [hasTarget, hasStatic, hasVite].filter(Boolean).length;
+
+    if (routeTypes === 0) {
+      throw new Error(`Route ${route.path} must have either target, static, or vite`);
     }
 
-    if (hasTarget && hasStatic) {
-      throw new Error(`Route ${route.path} cannot have both target and static`);
+    if (routeTypes > 1) {
+      throw new Error(`Route ${route.path} can only have one of: target, static, or vite`);
+    }
+
+    if (hasVite && !route.vite!.root) {
+      throw new Error(`Route ${route.path} vite configuration requires 'root' field`);
     }
   }
 }

@@ -73,7 +73,51 @@ routes:
     changeOrigin: true
 `;
 
-export async function initCommand(options: { simple?: boolean; output?: string; verbose?: boolean }) {
+const VITE_CONFIG = `# revx.yaml - Multi-Vite Project Configuration
+
+# Server settings
+server:
+  port: 3000
+  host: 0.0.0.0
+  name: "Multi-Vite Dev Server"
+  # Increase max sockets for better performance with Vite
+  maxSockets: 512
+
+# Global configuration
+global:
+  # CORS settings
+  cors:
+    enabled: true
+    origin: "*"
+
+  # Logging settings
+  logging:
+    enabled: true
+    format: "dev"
+
+# Route definitions
+routes:
+  # Vite project 1
+  - path: "/app1"
+    vite:
+      root: "./projects/app1"
+      base: "/app1"
+
+  # Vite project 2
+  - path: "/app2"
+    vite:
+      root: "./projects/app2"
+      base: "/app2"
+
+  # Backend API proxy
+  - path: "/api/*"
+    target: "http://localhost:4000"
+    changeOrigin: true
+    pathRewrite:
+      "^/api": ""
+`;
+
+export async function initCommand(options: { simple?: boolean; proxy?: boolean; output?: string; verbose?: boolean }) {
   const logger = new Logger(options.verbose);
   const outputPath = options.output || 'revx.yaml';
   const fullPath = resolve(process.cwd(), outputPath);
@@ -85,12 +129,21 @@ export async function initCommand(options: { simple?: boolean; output?: string; 
       process.exit(1);
     }
 
-    const content = options.simple ? SIMPLE_CONFIG : SAMPLE_CONFIG;
+    let content: string;
+    if (options.proxy) {
+      content = SAMPLE_CONFIG;
+    } else if (options.simple) {
+      content = SIMPLE_CONFIG;
+    } else {
+      // Default: Vite configuration
+      content = VITE_CONFIG;
+    }
+
     writeFileSync(fullPath, content, 'utf-8');
 
     logger.success(`Configuration file created: ${fullPath}`);
-    logger.info('Edit the file to configure your reverse proxy settings');
-    logger.info(`Start the proxy with: revx start ${outputPath}`);
+    logger.info('Edit the file to configure your routes');
+    logger.info(`Start the server with: revx start ${outputPath}`);
   } catch (error) {
     if (error instanceof Error) {
       logger.error(`Failed to create configuration file: ${error.message}`);

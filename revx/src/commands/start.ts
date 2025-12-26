@@ -7,11 +7,13 @@ import { existsSync } from 'fs';
 import { resolve } from 'path';
 import { ConfigLoader, RevxConfig, RouteConfig } from '../utils/config.js';
 import { ProxyManager } from '../utils/proxy.js';
+import { ViteMiddlewareManager } from '../utils/vite-middleware.js';
 import { Logger } from '../utils/logger.js';
 
 export async function startCommand(configFile: string = 'revx.yaml', options: { verbose?: boolean }) {
   const logger = new Logger(options.verbose);
   const configLoader = new ConfigLoader(logger);
+  const viteManager = new ViteMiddlewareManager(logger);
 
   try {
     logger.info(`Loading configuration from: ${configFile}`);
@@ -26,12 +28,13 @@ export async function startCommand(configFile: string = 'revx.yaml', options: { 
     const proxyManager = new ProxyManager(logger);
 
     setupMiddleware(app, config, logger);
-    setupRoutes(app, config, proxyManager, logger);
-    await startServer(app, config, logger);
+    await setupRoutes(app, config, proxyManager, viteManager, logger);
+    await startServer(app, config, viteManager, proxyManager, logger);
   } catch (error) {
     if (error instanceof Error) {
       logger.error(`Failed to start server: ${error.message}`);
     }
+    await viteManager.cleanup();
     process.exit(1);
   }
 }
@@ -69,20 +72,24 @@ function setupStaticRoute(app: express.Application, route: RouteConfig, logger: 
   app.use(route.path, express.static(rootPath));
 }
 
-function setupRoutes(
+async function setupRoutes(
   app: express.Application,
   config: RevxConfig,
   proxyManager: ProxyManager,
+  viteManager: ViteMiddlewareManager,
   logger: Logger
-): void {
-  config.routes.forEach((route) => {
-    if (route.static) {
+): Promise<void> {
+  for (const route of config.routes) {
+    if (route.vite) {
+      const viteMiddleware = await viteManager.createViteMiddleware(route);
+      app.use(route.path, viteMiddleware);
+    } else if (route.static) {
       setupStaticRoute(app, route, logger);
     } else {
       const proxyMiddleware = proxyManager.createProxyMiddleware(route);
       app.use(proxyMiddleware);
     }
-  });
+  }
 
   app.get('/health', (req: Request, res: Response) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -109,6 +116,8 @@ function setupRoutes(
 async function startServer(
   app: express.Application,
   config: RevxConfig,
+  viteManager: ViteMiddlewareManager,
+  proxyManager: ProxyManager,
   logger: Logger
 ): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -117,15 +126,44 @@ async function startServer(
 
     const server = createServer(app);
 
+    // Handle WebSocket upgrade requests for proxied routes
+    server.on('upgrade', (req, socket, head) => {
+      const proxies = proxyManager.getProxies();
+
+      for (const { middleware, route } of proxies) {
+        if (route.ws) {
+          // Check if the request URL matches the proxy route
+          const urlPath = req.url || '/';
+          const routePath = route.path.replace(/\/\*$/, ''); // Remove trailing /*
+
+          if (urlPath.startsWith(routePath)) {
+            logger.verbose(`WebSocket upgrade: ${urlPath} -> ${route.target}`);
+            // @ts-ignore - upgrade method exists on the middleware
+            middleware.upgrade(req, socket, head);
+            return;
+          }
+        }
+      }
+
+      // If no proxy matched, close the socket
+      logger.verbose(`WebSocket upgrade failed: no matching route for ${req.url}`);
+      socket.destroy();
+    });
+
     server.listen(port, host, () => {
       logger.server(`${config.server.name || 'Reverse Proxy'} started`);
       logger.success(`Listening on http://${host}:${port}`);
       logger.info('');
       logger.info('Configured routes:');
       config.routes.forEach((route) => {
-        const target = route.target || route.static;
-        logger.info(`  ${route.path} -> ${target}`);
+        const target = route.target || route.static || (route.vite ? `vite:${route.vite.root}` : 'unknown');
+        const wsIndicator = route.ws ? ' (WS)' : '';
+        logger.info(`  ${route.path} -> ${target}${wsIndicator}`);
       });
+      if (viteManager.getServerCount() > 0) {
+        logger.info('');
+        logger.info(`Running ${viteManager.getServerCount()} Vite dev server(s)`);
+      }
       logger.info('');
       logger.info('Press Ctrl+C to stop the server');
       resolve();
@@ -139,21 +177,23 @@ async function startServer(
       }
     });
 
-    process.on('SIGINT', () => {
+    const shutdown = async () => {
       logger.info('');
       logger.info('Shutting down server...');
+      await viteManager.cleanup();
       server.close(() => {
         logger.success('Server stopped');
         process.exit(0);
       });
+    };
+
+    process.on('SIGINT', () => {
+      shutdown();
     });
 
     process.on('SIGTERM', () => {
       logger.info('Received SIGTERM signal');
-      server.close(() => {
-        logger.success('Server stopped');
-        process.exit(0);
-      });
+      shutdown();
     });
   });
 }
