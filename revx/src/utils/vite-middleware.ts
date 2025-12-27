@@ -7,8 +7,18 @@ import { Logger } from './logger.js';
 
 export class ViteMiddlewareManager {
   private viteServers: Map<string, ViteDevServer> = new Map();
+  private serverPort?: number;
+  private serverHost?: string;
+  private httpServer?: any;
 
   constructor(private logger: Logger) {}
+
+  setServerInfo(port: number, host: string, httpServer?: any): void {
+    this.serverPort = port;
+    this.serverHost = host;
+    this.httpServer = httpServer;
+    this.logger.verbose(`ViteMiddlewareManager: Server info set to ${host}:${port}`);
+  }
 
   async createViteMiddleware(route: RouteConfig): Promise<RequestHandler> {
     if (!route.vite) {
@@ -30,14 +40,26 @@ export class ViteMiddlewareManager {
       configFile: route.vite.configFile,
       server: {
         middlewareMode: true,
-        hmr: {
-          // Use the parent server's port for HMR
+        hmr: this.httpServer ? {
+          // Use the parent HTTP server for HMR WebSocket
+          server: this.httpServer,
+        } : (this.serverPort ? {
+          // Fallback: Use clientPort to direct clients to the parent server
+          clientPort: this.serverPort,
+        } : {
+          // Default fallback
           clientPort: undefined,
-        },
+        }),
       },
       // Suppress Vite's own logging since we're using our logger
       logLevel: this.logger.isVerbose() ? 'info' : 'warn',
     };
+
+    if (this.httpServer) {
+      this.logger.verbose(`Vite HMR configured for ${route.path}: using parent HTTP server`);
+    } else if (this.serverPort && this.serverHost) {
+      this.logger.verbose(`Vite HMR configured for ${route.path}: clientPort=${this.serverPort}`);
+    }
 
     try {
       const vite = await createServer(viteConfig);
