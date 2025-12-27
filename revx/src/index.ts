@@ -10,7 +10,7 @@ const program = new Command();
 program
   .name('revx')
   .description('Multi-Vite project development server')
-  .version('1.0.4');
+  .version('1.1.0');
 
 program
   .command('start')

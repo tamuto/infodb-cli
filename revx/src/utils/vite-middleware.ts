@@ -32,7 +32,7 @@ export class ViteMiddlewareManager {
       throw new Error(`Vite root directory not found: ${rootPath}`);
     }
 
-    this.logger.info(`Creating Vite middleware: ${route.path} -> ${rootPath}`);
+    this.logger.verbose(`Creating Vite middleware: ${route.path} -> ${rootPath}`);
 
     const viteConfig: InlineConfig = {
       root: rootPath,

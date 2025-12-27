@@ -1,6 +1,6 @@
 # @infodb/revx
 
-**Host multiple Vite projects on a single port with unified routing.**
+**re-Vite eXrouter** - Host multiple Vite projects on a single port with unified routing.
 
 Perfect for monorepo development - run all your Vite apps, backend APIs, and other dev servers together with native HMR support.
 

@@ -76,7 +76,7 @@ function setupStaticRoute(app: express.Application, route: RouteConfig, logger: 
     throw new Error(`Static directory not found: ${rootPath}`);
   }
 
-  logger.info(`Static files configured: ${route.path} -> ${rootPath}`);
+  logger.verbose(`Static files configured: ${route.path} -> ${rootPath}`);
   app.use(route.path, express.static(rootPath));
 }
 
