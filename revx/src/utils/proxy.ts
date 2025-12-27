@@ -58,7 +58,7 @@ export class ProxyManager {
     // Store proxy info for WebSocket upgrade handling
     this.proxies.push({ middleware, route });
 
-    this.logger.info(`Proxy configured: ${route.path} -> ${route.target}`);
+    this.logger.verbose(`Proxy configured: ${route.path} -> ${route.target}`);
     if (route.ws) {
       this.logger.verbose(`WebSocket enabled for: ${route.path}`);
     }
