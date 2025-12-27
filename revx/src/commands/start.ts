@@ -132,8 +132,7 @@ async function startServerListen(
     const port = config.server.port;
     const host = config.server.host || '0.0.0.0';
 
-    // Handle WebSocket upgrade requests for proxied routes
-    // Note: Vite HMR WebSocket is now handled automatically by Vite using the parent HTTP server
+    // Handle WebSocket upgrade requests for proxied routes and Vite HMR
     server.on('upgrade', (req, socket, head) => {
       const urlPath = req.url || '/';
 
@@ -153,6 +152,13 @@ async function startServerListen(
             return;
           }
         }
+      }
+
+      // Check if this is a Vite HMR WebSocket request
+      if (viteManager.hasViteRoute(urlPath)) {
+        logger.verbose(`WebSocket upgrade for Vite HMR: ${urlPath}`);
+        // Let Vite's WebSocket handler (already registered on the HTTP server) handle it
+        return;
       }
 
       // If no route matched, close the socket
