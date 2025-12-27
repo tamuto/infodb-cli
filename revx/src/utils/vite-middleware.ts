@@ -103,4 +103,18 @@ export class ViteMiddlewareManager {
       server,
     }));
   }
+
+  hasViteRoute(urlPath: string): boolean {
+    // Check if any Vite route matches this URL path
+    for (const routePath of this.viteServers.keys()) {
+      // Remove trailing /* if present
+      const normalizedRoute = routePath.replace(/\/\*$/, '');
+
+      // Check if URL starts with this route path
+      if (urlPath === normalizedRoute || urlPath.startsWith(normalizedRoute + '/') || urlPath.startsWith(normalizedRoute + '?')) {
+        return true;
+      }
+    }
+    return false;
+  }
 }

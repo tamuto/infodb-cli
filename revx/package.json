@@ -1,6 +1,6 @@
 {
   "name": "@infodb/revx",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Multi-Vite project development server - Host multiple Vite apps on a single port with unified routing",
   "homepage": "https://github.com/tamuto/infodb-cli/",
   "bugs": "https://github.com/tamuto/infodb-cli/issues",
