@@ -1,0 +1,37 @@
+# Example TypeScript Lambda function configuration
+runtime: nodejs20.x
+handler: index.handler
+role: arn:aws:iam::123456789012:role/lambda-execution-role
+memory: 256
+timeout: 30
+description: "Test TypeScript Lambda function for lctl"
+
+# Node.js dependencies to install and bundle
+requirements:
+  - axios
+  - lodash
+
+# Additional files to include (non-JS/TS files only - source files are bundled automatically)
+files:
+  - config.json
+
+# Environment variables
+environment:
+  NODE_ENV: production
+  DEBUG: "false"
+
+# Permissions
+permissions:
+  - service: apigateway
+    source_arn: "arn:aws:execute-api:us-east-1:123456789012:*"
+    statement_id: "api-gateway-invoke"
+
+# Log settings
+log_retention_days: 14
+auto_create_log_group: true
+
+# Tags
+tags:
+  Environment: development
+  Project: lctl-test
+  Language: typescript

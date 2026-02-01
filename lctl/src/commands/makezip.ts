@@ -2,8 +2,24 @@ import chalk from 'chalk';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { spawn } from 'child_process';
+import * as esbuild from 'esbuild';
 import { ConfigManager } from '../utils/config';
 import { Logger } from '../utils/logger';
+
+/**
+ * Check if runtime is Node.js/TypeScript
+ */
+function isNodeRuntime(runtime: string): boolean {
+  return runtime.startsWith('nodejs');
+}
+
+/**
+ * Extract entry file name from handler (e.g., "index.handler" -> "index")
+ */
+function getEntryFileFromHandler(handler: string): string {
+  const parts = handler.split('.');
+  return parts[0];
+}
 
 export interface MakeZipOptions {
   verbose?: boolean;
@@ -43,14 +59,32 @@ export async function makeZipCommand(functionName: string, options: MakeZipOptio
       // File doesn't exist, continue
     }
 
-    // Install Python dependencies if requirements are specified
-    if (config.requirements && config.requirements.length > 0) {
-      logger.info('Installing Python dependencies...');
-      await installPythonDependencies(config.requirements, vendorDir, logger);
-    }
+    // Branch based on runtime
+    if (isNodeRuntime(config.runtime)) {
+      // Node.js/TypeScript Lambda
+      logger.info(`Runtime: ${chalk.cyan(config.runtime)} (Node.js/TypeScript)`);
 
-    // Create deployment ZIP
-    await createDeploymentZip(functionsDir, config, zipFileName, logger);
+      const bundledFile = await installNodeDependencies(
+        config.requirements || [],
+        functionsDir,
+        config.handler,
+        logger
+      );
+
+      await createNodeDeploymentZip(bundledFile, functionsDir, config, zipFileName, logger);
+    } else {
+      // Python Lambda (existing behavior)
+      logger.info(`Runtime: ${chalk.cyan(config.runtime)} (Python)`);
+
+      // Install Python dependencies if requirements are specified
+      if (config.requirements && config.requirements.length > 0) {
+        logger.info('Installing Python dependencies...');
+        await installPythonDependencies(config.requirements, vendorDir, logger);
+      }
+
+      // Create deployment ZIP
+      await createDeploymentZip(functionsDir, config, zipFileName, logger);
+    }
 
     logger.success(`✅ Deployment package created successfully: ${chalk.cyan(zipFileName)}`);
 
@@ -76,6 +110,160 @@ async function installPythonDependencies(requirements: string[], vendorDir: stri
   }
 
   logger.success('Dependencies installed successfully');
+}
+
+/**
+ * Install Node.js dependencies and bundle with esbuild
+ */
+async function installNodeDependencies(
+  requirements: string[],
+  functionsDir: string,
+  handler: string,
+  logger: Logger
+): Promise<string> {
+  const tempDir = path.join(functionsDir, '.lctl_build');
+  const entryFile = getEntryFileFromHandler(handler);
+
+  // Find entry point file (.ts or .js)
+  let entryPoint: string | null = null;
+  for (const ext of ['.ts', '.js', '.mts', '.mjs']) {
+    const candidate = path.join(functionsDir, `${entryFile}${ext}`);
+    try {
+      await fs.access(candidate);
+      entryPoint = candidate;
+      break;
+    } catch {
+      // File doesn't exist, try next extension
+    }
+  }
+
+  if (!entryPoint) {
+    throw new Error(`Entry point not found: ${entryFile}.ts or ${entryFile}.js in ${functionsDir}`);
+  }
+
+  logger.verbose(`Entry point found: ${entryPoint}`);
+
+  // Clean up existing build directory
+  try {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  } catch {
+    // Directory doesn't exist, continue
+  }
+  await fs.mkdir(tempDir, { recursive: true });
+
+  // Generate temporary package.json if requirements exist
+  if (requirements.length > 0) {
+    const packageJson = {
+      name: 'lambda-build-temp',
+      version: '1.0.0',
+      private: true,
+      dependencies: Object.fromEntries(
+        requirements.map(req => {
+          // Parse requirement (e.g., "axios@1.0.0" or "axios")
+          const match = req.match(/^(@?[^@]+)(?:@(.+))?$/);
+          if (match) {
+            return [match[1], match[2] || '*'];
+          }
+          return [req, '*'];
+        })
+      )
+    };
+
+    const packageJsonPath = path.join(tempDir, 'package.json');
+    await fs.writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
+
+    logger.info('Installing Node.js dependencies...');
+    await runCommand('npm', ['install', '--prefix', tempDir], logger);
+  }
+
+  // Bundle with esbuild
+  logger.info('Bundling with esbuild...');
+  const outfile = path.join(tempDir, `${entryFile}.js`);
+
+  const nodePaths = requirements.length > 0
+    ? [path.join(tempDir, 'node_modules')]
+    : [];
+
+  await esbuild.build({
+    entryPoints: [entryPoint],
+    bundle: true,
+    platform: 'node',
+    target: 'node18',
+    outfile,
+    format: 'cjs',
+    external: ['@aws-sdk/*'],
+    minify: true,
+    sourcemap: false,
+    nodePaths,
+  });
+
+  logger.success('Bundle created successfully');
+
+  return outfile;
+}
+
+/**
+ * Create deployment ZIP for Node.js Lambda
+ */
+async function createNodeDeploymentZip(
+  bundledFile: string,
+  functionsDir: string,
+  config: any,
+  zipFileName: string,
+  logger: Logger
+): Promise<void> {
+  logger.info('Creating ZIP package for Node.js Lambda...');
+
+  const originalCwd = process.cwd();
+  const tempDir = path.join(functionsDir, '.lctl_zip');
+
+  try {
+    // Clean up and create temp directory
+    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    await fs.mkdir(tempDir, { recursive: true });
+
+    // Copy bundled file
+    const bundledFileName = path.basename(bundledFile);
+    await fs.copyFile(bundledFile, path.join(tempDir, bundledFileName));
+
+    // Copy additional files if specified (excluding .ts/.js source files)
+    if (config.files && config.files.length > 0) {
+      for (const file of config.files) {
+        // Skip TypeScript/JavaScript source files (already bundled)
+        if (file.endsWith('.ts') || file.endsWith('.js') || file.endsWith('.mts') || file.endsWith('.mjs')) {
+          continue;
+        }
+
+        const srcPath = path.join(functionsDir, file);
+        const destPath = path.join(tempDir, file);
+
+        try {
+          const stat = await fs.stat(srcPath);
+          if (stat.isDirectory()) {
+            await runCommand('cp', ['-r', srcPath, destPath], logger);
+          } else {
+            await fs.mkdir(path.dirname(destPath), { recursive: true });
+            await fs.copyFile(srcPath, destPath);
+          }
+        } catch {
+          logger.verbose(`Skipping non-existent file: ${file}`);
+        }
+      }
+    }
+
+    // Create ZIP
+    process.chdir(tempDir);
+    await runCommand('zip', ['-r', zipFileName, '.'], logger);
+
+    // Move ZIP to project root
+    await fs.rename(zipFileName, path.join(originalCwd, zipFileName));
+
+  } finally {
+    process.chdir(originalCwd);
+    // Clean up temp directories
+    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    await fs.rm(path.join(functionsDir, '.lctl_build'), { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 async function createDeploymentZip(functionsDir: string, config: any, zipFileName: string, logger: Logger): Promise<void> {
