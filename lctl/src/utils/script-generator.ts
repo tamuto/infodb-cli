@@ -28,7 +28,7 @@ if aws lambda get-function --function-name ${functionName} &> /dev/null; then
         --handler ${config.handler} \\
         --role ${config.role} \\
         --timeout ${config.timeout || 3} \\
-        --memory-size ${config.memory || 128}${this.generateEnvironmentVariablesFlag(config)}${this.generateLayersFlag(config)}${this.generateDescriptionFlag(config)} | jq .
+        --memory-size ${config.memory || 128}${this.generateEnvironmentVariablesFlag(config)}${this.generateLayersFlag(config)}${this.generateDescriptionFlag(config)}${this.generateVpcFlag(config)} | jq .
     
     # 関数がActiveになるまで待機
     aws lambda wait function-active --function-name ${functionName}
@@ -41,7 +41,7 @@ else
         --architectures ${config.architecture || 'x86_64'} \\
         --timeout ${config.timeout || 3} \\
         --memory-size ${config.memory || 128} \\
-        --role ${config.role}${this.generateEnvironmentVariablesFlag(config)}${this.generateLayersFlag(config)}${this.generateDescriptionFlag(config)} | jq .
+        --role ${config.role}${this.generateEnvironmentVariablesFlag(config)}${this.generateLayersFlag(config)}${this.generateDescriptionFlag(config)}${this.generateVpcFlag(config)} | jq .
 fi
 
 # 共通の追加設定
@@ -123,6 +123,16 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
     return ` \\\n        --description "${config.description}"`;
   }
 
+
+  private generateVpcFlag(config: LambdaConfig): string {
+    if (!config.vpc) {
+      return '';
+    }
+    const subnetIds = config.vpc.subnets.join(',');
+    const securityGroupIds = config.vpc.security_groups.join(',');
+    return ` \\\n        --vpc-config "SubnetIds=${subnetIds},SecurityGroupIds=${securityGroupIds}"`;
+  }
+
   private generateAdditionalConfigurationCommands(functionName: string, config: LambdaConfig): string {
     let commands = '';
 
@@ -130,16 +140,6 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
     if (config.reserved_concurrency !== undefined) {
       commands += `\n# Set reserved concurrency\n`;
       commands += `aws lambda put-reserved-concurrency-capacity --function-name ${functionName} --reserved-concurrency-capacity ${config.reserved_concurrency} | jq .\n`;
-    }
-
-    // VPC configuration
-    if (config.vpc) {
-      commands += `\n# Update VPC configuration\n`;
-      commands += `aws lambda update-function-configuration --function-name ${functionName} \\
-        --vpc-config "SubnetIds=${config.vpc.subnets.join(',')},SecurityGroupIds=${config.vpc.security_groups.join(',')}" | jq .
-
-# 関数がActiveになるまで待機
-aws lambda wait function-active --function-name ${functionName}\n`;
     }
 
     // Dead letter queue
