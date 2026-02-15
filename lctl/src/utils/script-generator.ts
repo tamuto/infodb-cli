@@ -76,20 +76,8 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
       return '';
     }
 
-    let section = '# Environment Variables\n';
-    section += 'ENVIRON="Variables={"\n';
-
-    const envVars = Object.entries(config.environment);
-    envVars.forEach(([key, value], index) => {
-      section += `ENVIRON+="${key}=${value}`;
-      if (index < envVars.length - 1) {
-        section += ',';
-      }
-      section += '"\n';
-    });
-
-    section += 'ENVIRON+="}"\n\n';
-    return section;
+    const envJson = JSON.stringify({ Variables: config.environment });
+    return `# Environment Variables\nENVIRON='${envJson}'\n\n`;
   }
 
   private generateLayersSection(config: LambdaConfig): string {
