@@ -182,6 +182,11 @@ aws lambda wait function-active --function-name ${functionName}\n`;
         throw new Error(`Permission at index ${index} must specify either 'principal' or 'service'`);
       }
 
+      // Remove existing permission first (ignore error if not exists)
+      section += `aws lambda remove-permission \\
+        --function-name ${functionName} \\
+        --statement-id ${statementId} 2>/dev/null || true\n`;
+
       section += `aws lambda add-permission \\
         --function-name ${functionName} \\
         --statement-id ${statementId} \\
