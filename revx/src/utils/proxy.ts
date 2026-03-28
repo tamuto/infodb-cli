@@ -66,6 +66,41 @@ export class ProxyManager {
     return middleware;
   }
 
+  createFallbackProxyMiddleware(route: RouteConfig): RequestHandler {
+    const options: Options = {
+      target: route.target,
+      changeOrigin: route.changeOrigin ?? true,
+      pathRewrite: route.pathRewrite,
+      preserveHeaderKeyCase: true,
+      autoRewrite: true,
+
+      on: {
+        proxyReq: (proxyReq, req) => {
+          this.logger.verbose('Fallback proxy request', {
+            method: req.method,
+            path: req.url,
+            target: route.target
+          });
+        },
+
+        error: (err, req, res) => {
+          this.logger.error(`Fallback proxy error: ${err.message}`);
+          const serverRes = res as ServerResponse;
+          if (!serverRes.headersSent) {
+            serverRes.writeHead(502, { 'Content-Type': 'application/json' });
+          }
+          serverRes.end(JSON.stringify({
+            error: 'Bad Gateway',
+            message: 'Failed to proxy request'
+          }));
+        }
+      }
+    };
+
+    this.logger.verbose(`Fallback proxy configured -> ${route.target}`);
+    return createProxyMiddleware(options);
+  }
+
   getProxies(): ProxyInfo[] {
     return this.proxies;
   }
