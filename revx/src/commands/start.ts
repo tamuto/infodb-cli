@@ -68,7 +68,7 @@ function setupMiddleware(app: express.Application, config: RevxConfig, logger: L
   app.use(express.urlencoded({ extended: true }));
 }
 
-function setupStaticRoute(app: express.Application, route: RouteConfig, logger: Logger): void {
+function createStaticMiddleware(route: RouteConfig, logger: Logger): express.Handler {
   const rootPath = resolve(process.cwd(), route.static!);
 
   if (!existsSync(rootPath)) {
@@ -77,7 +77,7 @@ function setupStaticRoute(app: express.Application, route: RouteConfig, logger: 
   }
 
   logger.verbose(`Static files configured: ${route.path} -> ${rootPath}`);
-  app.use(route.path, express.static(rootPath));
+  return express.static(rootPath);
 }
 
 async function setupRoutes(
@@ -87,21 +87,44 @@ async function setupRoutes(
   viteManager: ViteMiddlewareManager,
   logger: Logger
 ): Promise<void> {
+  let defaultRouteHandler: express.Handler | null = null;
+  const defaultRoutePath = config.server.defaultRoute;
+
   for (const route of config.routes) {
     if (route.vite) {
       const viteMiddleware = await viteManager.createViteMiddleware(route);
       app.use(route.path, viteMiddleware);
+      if (defaultRoutePath === route.path) {
+        defaultRouteHandler = viteMiddleware;
+      }
     } else if (route.static) {
-      setupStaticRoute(app, route, logger);
+      const staticMiddleware = createStaticMiddleware(route, logger);
+      app.use(route.path, staticMiddleware);
+      if (defaultRoutePath === route.path) {
+        defaultRouteHandler = staticMiddleware;
+      }
     } else {
       const proxyMiddleware = proxyManager.createProxyMiddleware(route);
       app.use(proxyMiddleware);
+      if (defaultRoutePath === route.path) {
+        // For proxy fallback, create a separate middleware without pathFilter
+        defaultRouteHandler = proxyManager.createFallbackProxyMiddleware(route);
+      }
     }
   }
 
   app.get('/health', (req: Request, res: Response) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
+
+  if (defaultRouteHandler) {
+    const handler = defaultRouteHandler;
+    logger.info(`Default route fallback configured: ${defaultRoutePath}`);
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      logger.verbose(`Fallback to default route: ${req.method} ${req.path} -> ${defaultRoutePath}`);
+      handler(req, res, next);
+    });
+  }
 
   app.use((req: Request, res: Response) => {
     res.status(404).json({

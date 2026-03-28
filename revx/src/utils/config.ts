@@ -27,6 +27,7 @@ export interface ServerConfig {
   host?: string;
   name?: string;
   maxSockets?: number;
+  defaultRoute?: string;
 }
 
 export interface ViteConfig {
@@ -141,6 +142,13 @@ export class ConfigLoader {
 
     for (const route of config.routes) {
       this.validateRoute(route);
+    }
+
+    if (config.server.defaultRoute) {
+      const routePaths = config.routes.map(r => r.path);
+      if (!routePaths.includes(config.server.defaultRoute)) {
+        throw new Error(`defaultRoute "${config.server.defaultRoute}" does not match any configured route path. Available: ${routePaths.join(', ')}`);
+      }
     }
   }
 
