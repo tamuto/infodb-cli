@@ -18,9 +18,9 @@ ${this.generateZipSection(baseFileName || functionName, config)}${this.generateE
 if aws lambda get-function --function-name ${functionName} &> /dev/null; then
     echo "Updating existing Lambda function: ${functionName}"
     aws lambda update-function-code --function-name ${functionName} --zip-file fileb://${baseFileName || functionName}.zip | jq .
-    
-    # 関数がActiveになるまで待機
-    aws lambda wait function-active --function-name ${functionName}
+
+    # 関数の更新が完了するまで待機
+    aws lambda wait function-updated --function-name ${functionName}
 
     # 設定の更新
     aws lambda update-function-configuration --function-name ${functionName} \\
@@ -29,9 +29,9 @@ if aws lambda get-function --function-name ${functionName} &> /dev/null; then
         --role ${config.role} \\
         --timeout ${config.timeout || 3} \\
         --memory-size ${config.memory || 128}${this.generateEnvironmentVariablesFlag(config)}${this.generateLayersFlag(config)}${this.generateDescriptionFlag(config)}${this.generateVpcFlag(config)} | jq .
-    
-    # 関数がActiveになるまで待機
-    aws lambda wait function-active --function-name ${functionName}
+
+    # 関数の更新が完了するまで待機
+    aws lambda wait function-updated --function-name ${functionName}
 else
     echo "Creating new Lambda function: ${functionName}"
     aws lambda create-function --function-name ${functionName} \\
@@ -136,8 +136,8 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
       commands += `aws lambda update-function-configuration --function-name ${functionName} \\
         --dead-letter-config "TargetArn=${config.dead_letter_queue.target_arn}" | jq .
 
-# 関数がActiveになるまで待機
-aws lambda wait function-active --function-name ${functionName}\n`;
+# 関数の更新が完了するまで待機
+aws lambda wait function-updated --function-name ${functionName}\n`;
     }
 
     // Ephemeral storage
@@ -146,8 +146,8 @@ aws lambda wait function-active --function-name ${functionName}\n`;
       commands += `aws lambda update-function-configuration --function-name ${functionName} \\
         --ephemeral-storage "Size=${config.ephemeral_storage}" | jq .
 
-# 関数がActiveになるまで待機
-aws lambda wait function-active --function-name ${functionName}\n`;
+# 関数の更新が完了するまで待機
+aws lambda wait function-updated --function-name ${functionName}\n`;
     }
 
     // Tags
