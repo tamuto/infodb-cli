@@ -160,13 +160,14 @@ export class AwsCliManager {
     }
 
     // Set VPC configuration
-    if (config.vpc) {
-      await this.runAwsCommand([
-        'lambda', 'update-function-configuration',
-        '--function-name', functionName,
-        '--vpc-config', `SubnetIds=${config.vpc.subnets.join(',')},SecurityGroupIds=${config.vpc.security_groups.join(',')}`,
-      ]);
-    }
+    const vpcConfig = config.vpc
+      ? `SubnetIds=${config.vpc.subnets.join(',')},SecurityGroupIds=${config.vpc.security_groups.join(',')}`
+      : 'SubnetIds=[],SecurityGroupIds=[]';
+    await this.runAwsCommand([
+      'lambda', 'update-function-configuration',
+      '--function-name', functionName,
+      '--vpc-config', vpcConfig,
+    ]);
 
     // Set dead letter queue
     if (config.dead_letter_queue) {
