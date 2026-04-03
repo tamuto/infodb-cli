@@ -28,7 +28,7 @@ if aws lambda get-function --function-name ${functionName} &> /dev/null; then
         --handler ${config.handler} \\
         --role ${config.role} \\
         --timeout ${config.timeout || 3} \\
-        --memory-size ${config.memory || 128}${this.generateEnvironmentVariablesFlag(config)}${this.generateLayersFlag(config)}${this.generateDescriptionFlag(config)}${this.generateVpcFlag(config)} | jq .
+        --memory-size ${config.memory || 128}${this.generateEnvironmentVariablesFlag(config)}${this.generateLayersFlag(config)}${this.generateDescriptionFlag(config)}${this.generateVpcFlag(config, true)} | jq .
 
     # 関数の更新が完了するまで待機
     aws lambda wait function-updated --function-name ${functionName}
@@ -41,7 +41,7 @@ else
         --architectures ${config.architecture || 'x86_64'} \\
         --timeout ${config.timeout || 3} \\
         --memory-size ${config.memory || 128} \\
-        --role ${config.role}${this.generateEnvironmentVariablesFlag(config)}${this.generateLayersFlag(config)}${this.generateDescriptionFlag(config)}${this.generateVpcFlag(config)} | jq .
+        --role ${config.role}${this.generateEnvironmentVariablesFlag(config)}${this.generateLayersFlag(config)}${this.generateDescriptionFlag(config)}${this.generateVpcFlag(config, false)} | jq .
 fi
 
 # 共通の追加設定
@@ -112,13 +112,16 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
   }
 
 
-  private generateVpcFlag(config: LambdaConfig): string {
-    if (!config.vpc) {
-      return '';
+  private generateVpcFlag(config: LambdaConfig, isUpdate: boolean = false): string {
+    if (config.vpc) {
+      const subnetIds = config.vpc.subnets.join(',');
+      const securityGroupIds = config.vpc.security_groups.join(',');
+      return ` \\\n        --vpc-config "SubnetIds=${subnetIds},SecurityGroupIds=${securityGroupIds}"`;
     }
-    const subnetIds = config.vpc.subnets.join(',');
-    const securityGroupIds = config.vpc.security_groups.join(',');
-    return ` \\\n        --vpc-config "SubnetIds=${subnetIds},SecurityGroupIds=${securityGroupIds}"`;
+    if (isUpdate) {
+      return ' \\\n        --vpc-config "SubnetIds=[],SecurityGroupIds=[]"';
+    }
+    return '';
   }
 
   private generateAdditionalConfigurationCommands(functionName: string, config: LambdaConfig): string {
