@@ -194,7 +194,7 @@ aws lambda wait function-updated --function-name ${functionName}\n`;
         --function-name ${functionName} \\
         --statement-id ${statementId} \\
         --action ${action} \\
-        --principal ${principal}`;
+        --principal '${principal}'`;
 
       if (permission.source_arn) {
         section += ` \\
@@ -234,7 +234,12 @@ aws lambda wait function-updated --function-name ${functionName}\n`;
   }
 
   private generateFunctionUrlSection(functionName: string, config: LambdaConfig): string {
-    const publicStatementId = 'function-url-public-invoke';
+    const invokeUrlStatementId = 'function-url-public-invoke-url';
+    const invokeFunctionStatementId = 'function-url-public-invoke-function';
+    const legacyStatementId = 'function-url-public-invoke';
+    const removeStatement = (id: string) => `aws lambda remove-permission \\
+    --function-name ${functionName} \\
+    --statement-id ${id} 2>/dev/null || true`;
 
     if (!config.function_url) {
       return `
@@ -243,9 +248,9 @@ if aws lambda get-function-url-config --function-name ${functionName} &> /dev/nu
     echo "Removing Function URL config: ${functionName}"
     aws lambda delete-function-url-config --function-name ${functionName}
 fi
-aws lambda remove-permission \\
-    --function-name ${functionName} \\
-    --statement-id ${publicStatementId} 2>/dev/null || true
+${removeStatement(invokeUrlStatementId)}
+${removeStatement(invokeFunctionStatementId)}
+${removeStatement(legacyStatementId)}
 `;
     }
 
@@ -275,22 +280,29 @@ fi
     if (fu.auth_type === 'NONE') {
       section += `
 # AuthType=NONE: パブリックアクセス用の resource-based permission を付与
-aws lambda remove-permission \\
-    --function-name ${functionName} \\
-    --statement-id ${publicStatementId} 2>/dev/null || true
+# (lambda:InvokeFunctionUrl + lambda:InvokeFunction via URL の両方が必要)
+${removeStatement(legacyStatementId)}
+${removeStatement(invokeUrlStatementId)}
 aws lambda add-permission \\
     --function-name ${functionName} \\
-    --statement-id ${publicStatementId} \\
+    --statement-id ${invokeUrlStatementId} \\
     --action lambda:InvokeFunctionUrl \\
     --principal '*' \\
     --function-url-auth-type NONE | jq .
+${removeStatement(invokeFunctionStatementId)}
+aws lambda add-permission \\
+    --function-name ${functionName} \\
+    --statement-id ${invokeFunctionStatementId} \\
+    --action lambda:InvokeFunction \\
+    --principal '*' \\
+    --invoked-via-function-url | jq .
 `;
     } else {
       section += `
 # AuthType=AWS_IAM: 過去に付与したパブリック用 permission があれば除去
-aws lambda remove-permission \\
-    --function-name ${functionName} \\
-    --statement-id ${publicStatementId} 2>/dev/null || true
+${removeStatement(invokeUrlStatementId)}
+${removeStatement(invokeFunctionStatementId)}
+${removeStatement(legacyStatementId)}
 `;
     }
 
