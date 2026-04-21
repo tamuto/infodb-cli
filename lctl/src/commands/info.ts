@@ -20,6 +20,7 @@ export async function infoCommand(functionName: string, options: InfoOptions): P
 
     const awsCliManager = new AwsCliManager(undefined, undefined, logger);
     const functionInfo = await awsCliManager.getFunctionInfo(actualFunctionName);
+    const functionUrlInfo = await awsCliManager.getFunctionUrl(actualFunctionName);
 
     // Display function information in a readable format
     console.log(chalk.green('\n📋 Lambda Function Information:'));
@@ -49,6 +50,20 @@ export async function infoCommand(functionName: string, options: InfoOptions): P
       functionInfo.Layers.forEach((layer, index) => {
         console.log(`  ${index + 1}. ${layer.Arn}`);
       });
+    }
+
+    console.log(chalk.cyan('\n🌐 Function URL:'));
+    if (functionUrlInfo) {
+      console.log(chalk.cyan('  URL:'), functionUrlInfo.FunctionUrl);
+      console.log(chalk.cyan('  Auth Type:'), functionUrlInfo.AuthType);
+      if (functionUrlInfo.InvokeMode) {
+        console.log(chalk.cyan('  Invoke Mode:'), functionUrlInfo.InvokeMode);
+      }
+      if (functionUrlInfo.Cors) {
+        console.log(chalk.cyan('  CORS:'), JSON.stringify(functionUrlInfo.Cors));
+      }
+    } else {
+      console.log('  not configured');
     }
 
   } catch (error) {

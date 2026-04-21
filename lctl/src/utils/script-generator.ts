@@ -50,7 +50,7 @@ ${this.generateAdditionalConfigurationCommands(functionName, config)}
 ${this.generatePermissionsSection(functionName, config)}
 
 ${this.generateLogGroupSection(functionName, config)}
-
+${this.generateFunctionUrlSection(functionName, config)}
 rm ${baseFileName || functionName}.zip
 
 echo "✅ Lambda function ${functionName} deployed successfully!"
@@ -231,6 +231,92 @@ aws lambda wait function-updated --function-name ${functionName}\n`;
     };
 
     return servicePrincipals[service] || service;
+  }
+
+  private generateFunctionUrlSection(functionName: string, config: LambdaConfig): string {
+    const publicStatementId = 'function-url-public-invoke';
+
+    if (!config.function_url) {
+      return `
+# Function URL: 未設定なので、既存の設定があれば削除
+if aws lambda get-function-url-config --function-name ${functionName} &> /dev/null; then
+    echo "Removing Function URL config: ${functionName}"
+    aws lambda delete-function-url-config --function-name ${functionName}
+fi
+aws lambda remove-permission \\
+    --function-name ${functionName} \\
+    --statement-id ${publicStatementId} 2>/dev/null || true
+`;
+    }
+
+    const fu = config.function_url;
+    const invokeMode = fu.invoke_mode || 'BUFFERED';
+    const qualifierFlag = fu.qualifier ? ` \\\n        --qualifier ${fu.qualifier}` : '';
+    const qualifierQuery = fu.qualifier ? ` --qualifier ${fu.qualifier}` : '';
+    const corsFlag = this.generateCorsFlag(fu.cors);
+
+    let section = `
+# Function URL: create または update
+if aws lambda get-function-url-config --function-name ${functionName}${qualifierQuery} &> /dev/null; then
+    echo "Updating Function URL config: ${functionName}"
+    aws lambda update-function-url-config \\
+        --function-name ${functionName} \\
+        --auth-type ${fu.auth_type} \\
+        --invoke-mode ${invokeMode}${qualifierFlag}${corsFlag} | jq .
+else
+    echo "Creating Function URL config: ${functionName}"
+    aws lambda create-function-url-config \\
+        --function-name ${functionName} \\
+        --auth-type ${fu.auth_type} \\
+        --invoke-mode ${invokeMode}${qualifierFlag}${corsFlag} | jq .
+fi
+`;
+
+    if (fu.auth_type === 'NONE') {
+      section += `
+# AuthType=NONE: パブリックアクセス用の resource-based permission を付与
+aws lambda remove-permission \\
+    --function-name ${functionName} \\
+    --statement-id ${publicStatementId} 2>/dev/null || true
+aws lambda add-permission \\
+    --function-name ${functionName} \\
+    --statement-id ${publicStatementId} \\
+    --action lambda:InvokeFunctionUrl \\
+    --principal '*' \\
+    --function-url-auth-type NONE | jq .
+`;
+    } else {
+      section += `
+# AuthType=AWS_IAM: 過去に付与したパブリック用 permission があれば除去
+aws lambda remove-permission \\
+    --function-name ${functionName} \\
+    --statement-id ${publicStatementId} 2>/dev/null || true
+`;
+    }
+
+    section += `
+echo "Function URL: $(aws lambda get-function-url-config --function-name ${functionName}${qualifierQuery} --query FunctionUrl --output text)"
+`;
+
+    return section;
+  }
+
+  private generateCorsFlag(cors?: NonNullable<LambdaConfig['function_url']>['cors']): string {
+    if (!cors) {
+      return '';
+    }
+    const corsConfig: Record<string, unknown> = {};
+    if (cors.allow_origins) corsConfig.AllowOrigins = cors.allow_origins;
+    if (cors.allow_methods) corsConfig.AllowMethods = cors.allow_methods;
+    if (cors.allow_headers) corsConfig.AllowHeaders = cors.allow_headers;
+    if (cors.expose_headers) corsConfig.ExposeHeaders = cors.expose_headers;
+    if (cors.allow_credentials !== undefined) corsConfig.AllowCredentials = cors.allow_credentials;
+    if (cors.max_age !== undefined) corsConfig.MaxAge = cors.max_age;
+
+    if (Object.keys(corsConfig).length === 0) {
+      return '';
+    }
+    return ` \\\n        --cors '${JSON.stringify(corsConfig)}'`;
   }
 
   private generateLogGroupSection(functionName: string, config: LambdaConfig): string {

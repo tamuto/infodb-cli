@@ -19,6 +19,11 @@ export async function deleteCommand(functionName: string, options: DeleteOptions
     const actualFunctionName = config.function_name || functionName;
 
     const awsCliManager = new AwsCliManager(undefined, undefined, logger);
+
+    if (await awsCliManager.deleteFunctionUrl(actualFunctionName)) {
+      logger.info(`Removed Function URL config for ${chalk.cyan(actualFunctionName)}`);
+    }
+
     await awsCliManager.deleteFunction(actualFunctionName);
 
     logger.success(`✅ Lambda function ${chalk.cyan(actualFunctionName)} deleted successfully!`);

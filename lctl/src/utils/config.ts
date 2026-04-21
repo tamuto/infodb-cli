@@ -29,6 +29,21 @@ export interface LambdaConfig {
   };
   tags?: Record<string, string>;
 
+  // Function URL settings
+  function_url?: {
+    auth_type: 'NONE' | 'AWS_IAM';
+    invoke_mode?: 'BUFFERED' | 'RESPONSE_STREAM';
+    qualifier?: string;
+    cors?: {
+      allow_origins?: string[];
+      allow_methods?: string[];
+      allow_headers?: string[];
+      expose_headers?: string[];
+      allow_credentials?: boolean;
+      max_age?: number;
+    };
+  };
+
   // Permission settings
   permissions?: Array<{
     service?: string;
@@ -106,6 +121,7 @@ export class ConfigManager {
       vpc: yamlConfig.vpc,
       dead_letter_queue: yamlConfig.dead_letter_queue,
       tags: yamlConfig.tags || {},
+      function_url: yamlConfig.function_url,
       permissions: yamlConfig.permissions || [],
       log_retention_days: yamlConfig.log_retention_days || 7,
       auto_create_log_group: yamlConfig.auto_create_log_group !== false,
