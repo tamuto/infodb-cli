@@ -88,6 +88,24 @@ vpc:
 tags:
   Environment: production
 
+# Lambda Function URL 設定（任意）
+# このセクションが無い場合、既存の Function URL 設定は自動で削除される
+function_url:
+  auth_type: NONE              # NONE | AWS_IAM（必須）
+  invoke_mode: BUFFERED        # BUFFERED | RESPONSE_STREAM（省略時 BUFFERED）
+  qualifier: prod              # エイリアス（省略可）
+  cors:
+    allow_origins:
+      - "*"
+    allow_methods:
+      - GET
+      - POST
+    allow_headers:
+      - "*"
+    expose_headers: []
+    allow_credentials: false
+    max_age: 0
+
 # デプロイメント設定
 log_retention_days: 7
 auto_create_log_group: true

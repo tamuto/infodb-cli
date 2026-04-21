@@ -21,6 +21,22 @@ export interface LambdaFunctionInfo {
   }>;
 }
 
+export interface LambdaFunctionUrlInfo {
+  FunctionUrl: string;
+  AuthType: string;
+  InvokeMode?: string;
+  Cors?: {
+    AllowCredentials?: boolean;
+    AllowHeaders?: string[];
+    AllowMethods?: string[];
+    AllowOrigins?: string[];
+    ExposeHeaders?: string[];
+    MaxAge?: number;
+  };
+  CreationTime?: string;
+  LastModifiedTime?: string;
+}
+
 export class AwsCliManager {
   constructor(
     private region?: string,
@@ -203,6 +219,30 @@ export class AwsCliManager {
 
     const response = JSON.parse(result);
     return response.Configuration;
+  }
+
+  async getFunctionUrl(functionName: string): Promise<LambdaFunctionUrlInfo | null> {
+    try {
+      const result = await this.runAwsCommand([
+        'lambda', 'get-function-url-config',
+        '--function-name', functionName,
+      ]);
+      return JSON.parse(result);
+    } catch {
+      return null;
+    }
+  }
+
+  async deleteFunctionUrl(functionName: string): Promise<boolean> {
+    try {
+      await this.runAwsCommand([
+        'lambda', 'delete-function-url-config',
+        '--function-name', functionName,
+      ]);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private async runAwsCommand(args: string[]): Promise<string> {
