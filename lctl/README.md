@@ -260,6 +260,12 @@ pnpx @infodb/lctl export my-function --output deploy-script.sh
 ENV_NAME=prod DB_HOST=prod.example.com pnpx @infodb/lctl export my-function
 ```
 
+**エクスポートされたスクリプトについて（v0.14.0+）:**
+- スクリプトは bash + AWS CLI のみで動作します（lctl / Node.js は不要）。`jq` があれば出力を整形しますが、無くても動作します。
+- `environment:` セクションの `${VAR}` は **スクリプト実行時** に展開されます。export 時にはシークレット等を設定する必要がなく、実行環境側で設定します（未設定の場合はスクリプトが明確なエラーで停止します）。
+- スクリプトは実行後も ZIP ファイルを削除しません（deploy コマンド経由の場合は deploy が後始末します）。
+- スクリプトと `<config-name>.zip` を同じディレクトリに配置して実行してください。リージョンは実行環境の AWS CLI 設定（`AWS_DEFAULT_REGION` 等）に従います。
+
 ## YAML設定ファイル（必須）
 
 設定ファイルは `configs/` ディレクトリに配置し、`configs/<config-name>.yaml` 形式で命名します。
@@ -425,6 +431,10 @@ tags:
 ```bash
 ENV_NAME=prod DB_HOST=prod.example.com pnpx @infodb/lctl deploy my-function
 ```
+
+**変数展開のタイミング（v0.14.0+）:**
+- `environment:` セクションの `${VAR}` → **生成されたスクリプトの実行時** に展開（エクスポートしたスクリプトを別環境で実行する場合は、その環境で変数を設定する）
+- それ以外（`function_name`、`role`、`tags` など）の `${VAR}` → lctl コマンド（makezip / export / deploy）の**実行時**に展開され、スクリプトに埋め込まれる
 
 ## 環境要件
 

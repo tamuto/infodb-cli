@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import { promises as fs } from 'fs';
 import { spawn } from 'child_process';
 import { ScriptGenerator } from '../utils/script-generator';
 import { Logger } from '../utils/logger';
@@ -38,9 +39,11 @@ export async function deployCommand(functionName: string, options: DeployOptions
       await executeScript(scriptFileName, env, logger);
 
     } finally {
-      // Clean up script file
+      // Clean up script file and deployment package
+      // (export したスクリプト自体は ZIP を消さないため、deploy ではここで後始末する)
       const scriptGenerator = new ScriptGenerator(logger);
       await scriptGenerator.cleanupScript(scriptFileName);
+      await fs.unlink(`${functionName}.zip`).catch(() => {});
     }
 
   } catch (error) {
