@@ -14,10 +14,15 @@ set -eu
 # Function: ${functionName}
 # Generated at: ${new Date().toISOString()}
 
+export AWS_PAGER=""
+
+# jq があれば結果を整形して表示し、なければそのまま出力する
+pp() { if command -v jq >/dev/null 2>&1; then jq .; else cat; fi; }
+
 ${this.generateZipSection(baseFileName || functionName, config)}${this.generateEnvironmentVariablesSection(config)}${this.generateLayersSection(config)}# Lambda関数の存在を確認
 if aws lambda get-function --function-name ${functionName} &> /dev/null; then
     echo "Updating existing Lambda function: ${functionName}"
-    aws lambda update-function-code --function-name ${functionName} --zip-file fileb://${baseFileName || functionName}.zip | jq .
+    aws lambda update-function-code --function-name ${functionName} --zip-file fileb://${baseFileName || functionName}.zip | pp
 
     # 関数の更新が完了するまで待機
     aws lambda wait function-updated --function-name ${functionName}
@@ -28,7 +33,7 @@ if aws lambda get-function --function-name ${functionName} &> /dev/null; then
         --handler ${config.handler} \\
         --role ${config.role} \\
         --timeout ${config.timeout || 3} \\
-        --memory-size ${config.memory || 128}${this.generateEnvironmentVariablesFlag(config)}${this.generateLayersFlag(config)}${this.generateDescriptionFlag(config)}${this.generateVpcFlag(config, true)} | jq .
+        --memory-size ${config.memory || 128}${this.generateEnvironmentVariablesFlag(config)}${this.generateLayersFlag(config)}${this.generateDescriptionFlag(config)}${this.generateVpcFlag(config, true)} | pp
 
     # 関数の更新が完了するまで待機
     aws lambda wait function-updated --function-name ${functionName}
@@ -41,7 +46,7 @@ else
         --architectures ${config.architecture || 'x86_64'} \\
         --timeout ${config.timeout || 3} \\
         --memory-size ${config.memory || 128} \\
-        --role ${config.role}${this.generateEnvironmentVariablesFlag(config)}${this.generateLayersFlag(config)}${this.generateDescriptionFlag(config)}${this.generateVpcFlag(config, false)} | jq .
+        --role ${config.role}${this.generateEnvironmentVariablesFlag(config)}${this.generateLayersFlag(config)}${this.generateDescriptionFlag(config)}${this.generateVpcFlag(config, false)} | pp
 fi
 
 # 共通の追加設定
@@ -51,8 +56,6 @@ ${this.generatePermissionsSection(functionName, config)}
 
 ${this.generateLogGroupSection(functionName, config)}
 ${this.generateFunctionUrlSection(functionName, config)}
-rm ${baseFileName || functionName}.zip
-
 echo "✅ Lambda function ${functionName} deployed successfully!"
 `;
 
@@ -77,7 +80,47 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
     }
 
     const envJson = JSON.stringify({ Variables: config.environment });
-    return `# Environment Variables\nENVIRON='${envJson}'\n\n`;
+
+    // ${VAR} プレースホルダはスクリプト実行時に bash が展開する
+    // (値は JSON エスケープ済みの __lctl_VAR を参照する)。
+    // それ以外の文字はダブルクォート内でリテラルになるようエスケープする。
+    const escaped = envJson
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/`/g, '\\`')
+      .replace(/\$/g, '\\$')
+      .replace(/\\\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, '${__lctl_$1}');
+
+    const referencedVars = new Set<string>();
+    for (const match of envJson.matchAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g)) {
+      referencedVars.add(match[1]);
+    }
+
+    let section = '# Environment Variables\n';
+
+    if (referencedVars.size > 0) {
+      // 参照している環境変数が未設定なら、ここで明確なエラーで停止させる
+      for (const varName of referencedVars) {
+        section += `: "\${${varName}:?環境変数 ${varName} が未設定です}"\n`;
+      }
+
+      // 実行時の値を JSON に埋め込めるようエスケープする
+      section += `__lctl_escape() {
+  local v=$1
+  v=\${v//\\\\/\\\\\\\\}
+  v=\${v//\\"/\\\\\\"}
+  v=\${v//$'\\n'/\\\\n}
+  v=\${v//$'\\r'/\\\\r}
+  v=\${v//$'\\t'/\\\\t}
+  printf '%s' "$v"
+}\n`;
+      for (const varName of referencedVars) {
+        section += `__lctl_${varName}=$(__lctl_escape "\$${varName}")\n`;
+      }
+    }
+
+    section += `ENVIRON="${escaped}"\n\n`;
+    return section;
   }
 
   private generateLayersSection(config: LambdaConfig): string {
@@ -130,14 +173,14 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
     // Reserved concurrency
     if (config.reserved_concurrency !== undefined) {
       commands += `\n# Set reserved concurrency\n`;
-      commands += `aws lambda put-reserved-concurrency-capacity --function-name ${functionName} --reserved-concurrency-capacity ${config.reserved_concurrency} | jq .\n`;
+      commands += `aws lambda put-function-concurrency --function-name ${functionName} --reserved-concurrent-executions ${config.reserved_concurrency} | pp\n`;
     }
 
     // Dead letter queue
     if (config.dead_letter_queue) {
       commands += `\n# Set dead letter queue\n`;
       commands += `aws lambda update-function-configuration --function-name ${functionName} \\
-        --dead-letter-config "TargetArn=${config.dead_letter_queue.target_arn}" | jq .
+        --dead-letter-config "TargetArn=${config.dead_letter_queue.target_arn}" | pp
 
 # 関数の更新が完了するまで待機
 aws lambda wait function-updated --function-name ${functionName}\n`;
@@ -147,7 +190,7 @@ aws lambda wait function-updated --function-name ${functionName}\n`;
     if (config.ephemeral_storage) {
       commands += `\n# Set ephemeral storage\n`;
       commands += `aws lambda update-function-configuration --function-name ${functionName} \\
-        --ephemeral-storage "Size=${config.ephemeral_storage}" | jq .
+        --ephemeral-storage "Size=${config.ephemeral_storage}" | pp
 
 # 関数の更新が完了するまで待機
 aws lambda wait function-updated --function-name ${functionName}\n`;
@@ -159,7 +202,7 @@ aws lambda wait function-updated --function-name ${functionName}\n`;
       const tags = Object.entries(config.tags)
         .map(([key, value]) => `${key}=${value}`)
         .join(',');
-      commands += `aws lambda tag-resource --resource "\$(aws lambda get-function --function-name ${functionName} --query 'Configuration.FunctionArn' --output text)" --tags ${tags} | jq .\n`;
+      commands += `aws lambda tag-resource --resource "\$(aws lambda get-function --function-name ${functionName} --query 'Configuration.FunctionArn' --output text)" --tags ${tags} | pp\n`;
     }
 
     return commands;
@@ -201,7 +244,7 @@ aws lambda wait function-updated --function-name ${functionName}\n`;
         --source-arn ${permission.source_arn}`;
       }
 
-      section += ' | jq .\n';
+      section += ' | pp\n';
     });
 
     return section;
@@ -265,13 +308,13 @@ if aws lambda get-function-url-config --function-name ${functionName}${qualifier
     aws lambda update-function-url-config \\
         --function-name ${functionName} \\
         --auth-type ${fu.auth_type} \\
-        --invoke-mode ${invokeMode}${qualifierFlag}${corsFlag} | jq .
+        --invoke-mode ${invokeMode}${qualifierFlag}${corsFlag} | pp
 else
     echo "Creating Function URL config: ${functionName}"
     aws lambda create-function-url-config \\
         --function-name ${functionName} \\
         --auth-type ${fu.auth_type} \\
-        --invoke-mode ${invokeMode}${qualifierFlag}${corsFlag} | jq .
+        --invoke-mode ${invokeMode}${qualifierFlag}${corsFlag} | pp
 fi
 `;
 
@@ -285,14 +328,14 @@ aws lambda add-permission \\
     --statement-id ${invokeUrlStatementId} \\
     --action lambda:InvokeFunctionUrl \\
     --principal '*' \\
-    --function-url-auth-type NONE | jq .
+    --function-url-auth-type NONE | pp
 ${removeStatement(invokeFunctionStatementId)}
 aws lambda add-permission \\
     --function-name ${functionName} \\
     --statement-id ${invokeFunctionStatementId} \\
     --action lambda:InvokeFunction \\
     --principal '*' \\
-    --invoked-via-function-url | jq .
+    --invoked-via-function-url | pp
 `;
     } else {
       section += `
@@ -339,11 +382,11 @@ if ! aws logs describe-log-groups \\
     --query "logGroups[?logGroupName=='/aws/lambda/${functionName}'].logGroupName" \\
     --output text | grep -q "^/aws/lambda/${functionName}$"; then
     echo "Creating log group for ${functionName}"
-    aws logs create-log-group --log-group-name /aws/lambda/${functionName} | jq .
+    aws logs create-log-group --log-group-name /aws/lambda/${functionName} | pp
 fi
 
 # ログ保持期間を設定
-aws logs put-retention-policy --log-group-name /aws/lambda/${functionName} --retention-in-days ${config.log_retention_days || 7} | jq .
+aws logs put-retention-policy --log-group-name /aws/lambda/${functionName} --retention-in-days ${config.log_retention_days || 7} | pp
 `;
     }
 

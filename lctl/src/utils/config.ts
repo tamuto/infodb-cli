@@ -83,9 +83,14 @@ export class ConfigManager {
     // YAML config is now required
     try {
       const yamlContent = await fs.readFile(yamlPath, 'utf-8');
-      const parsedYaml = yaml.parse(yamlContent);
+      const parsedYaml = yaml.parse(yamlContent) ?? {};
       this.logger.verbose(`Parsed YAML before substitution:`, parsedYaml);
+      // environment セクションの ${VAR} は生成スクリプトの実行時に bash が展開するため、
+      // ここではプレースホルダのまま保持する
+      const rawEnvironment = parsedYaml.environment;
+      delete parsedYaml.environment;
       yamlConfig = substituteEnvVariables(parsedYaml);
+      yamlConfig.environment = rawEnvironment;
       this.logger.verbose(`Loaded YAML config from: ${yamlPath}`);
       this.logger.verbose(`YAML config after substitution:`, yamlConfig);
     } catch (error) {
