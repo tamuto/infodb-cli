@@ -19,7 +19,7 @@ export AWS_PAGER=""
 # jq があれば結果を整形して表示し、なければそのまま出力する
 pp() { if command -v jq >/dev/null 2>&1; then jq .; else cat; fi; }
 
-${this.generateZipSection(baseFileName || functionName, config)}${this.generateEnvironmentVariablesSection(config)}${this.generateLayersSection(config)}# Lambda関数の存在を確認
+${this.generateVariableGuards(functionName, config)}${this.generateZipSection(baseFileName || functionName, config)}${this.generateEnvironmentVariablesSection(config)}${this.generateLayersSection(config)}# Lambda関数の存在を確認
 if aws lambda get-function --function-name ${functionName} &> /dev/null; then
     echo "Updating existing Lambda function: ${functionName}"
     aws lambda update-function-code --function-name ${functionName} --zip-file fileb://${baseFileName || functionName}.zip | pp
@@ -63,6 +63,48 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
   }
 
 
+  // スクリプト全体（zip 以外の全フィールド）に含まれる ${VAR} 参照を収集する。
+  // files/requirements/zip_excludes/functionsDirectory は makezip でのみ使われ
+  // 生成スクリプトには埋め込まれないため対象外とする。
+  private collectReferencedEnvVars(functionName: string, config: LambdaConfig): string[] {
+    const { functionsDirectory, files, requirements, zip_excludes, ...scriptRelevant } = config;
+    const text = JSON.stringify({ functionName, ...scriptRelevant });
+    const vars = new Set<string>();
+    for (const match of text.matchAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g)) {
+      vars.add(match[1]);
+    }
+    return Array.from(vars).sort();
+  }
+
+  private generateVariableGuards(functionName: string, config: LambdaConfig): string {
+    const vars = this.collectReferencedEnvVars(functionName, config);
+    if (vars.length === 0) {
+      return '';
+    }
+
+    let section = '# 実行時に必要な環境変数の確認\n';
+    for (const v of vars) {
+      section += `: "\${${v}:?環境変数 ${v} が未設定です}"\n`;
+    }
+    section += '\n' + this.generateEscapeHelper();
+    return section;
+  }
+
+  private generateEscapeHelper(): string {
+    return `# JSON文字列へ値を埋め込むためのエスケープ
+__lctl_escape() {
+  local v=$1
+  v=\${v//\\\\/\\\\\\\\}
+  v=\${v//\\"/\\\\\\"}
+  v=\${v//$'\\n'/\\\\n}
+  v=\${v//$'\\r'/\\\\r}
+  v=\${v//$'\\t'/\\\\t}
+  printf '%s' "$v"
+}
+
+`;
+  }
+
   private generateZipSection(zipBaseName: string, config: LambdaConfig): string {
     const zipFileName = `${zipBaseName}.zip`;
     let section = '# Check for deployment package\n';
@@ -97,26 +139,9 @@ echo "✅ Lambda function ${functionName} deployed successfully!"
     }
 
     let section = '# Environment Variables\n';
-
-    if (referencedVars.size > 0) {
-      // 参照している環境変数が未設定なら、ここで明確なエラーで停止させる
-      for (const varName of referencedVars) {
-        section += `: "\${${varName}:?環境変数 ${varName} が未設定です}"\n`;
-      }
-
-      // 実行時の値を JSON に埋め込めるようエスケープする
-      section += `__lctl_escape() {
-  local v=$1
-  v=\${v//\\\\/\\\\\\\\}
-  v=\${v//\\"/\\\\\\"}
-  v=\${v//$'\\n'/\\\\n}
-  v=\${v//$'\\r'/\\\\r}
-  v=\${v//$'\\t'/\\\\t}
-  printf '%s' "$v"
-}\n`;
-      for (const varName of referencedVars) {
-        section += `__lctl_${varName}=$(__lctl_escape "\$${varName}")\n`;
-      }
+    // 未設定チェックと __lctl_escape はスクリプト冒頭で一括生成済み
+    for (const varName of referencedVars) {
+      section += `__lctl_${varName}=$(__lctl_escape "\$${varName}")\n`;
     }
 
     section += `ENVIRON="${escaped}"\n\n`;
@@ -237,7 +262,7 @@ aws lambda wait function-updated --function-name ${functionName}\n`;
         --function-name ${functionName} \\
         --statement-id ${statementId} \\
         --action ${action} \\
-        --principal '${principal}'`;
+        --principal "${principal}"`;
 
       if (permission.source_arn) {
         section += ` \\
@@ -299,10 +324,11 @@ ${removeStatement(invokeFunctionStatementId)}
     const invokeMode = fu.invoke_mode || 'BUFFERED';
     const qualifierFlag = fu.qualifier ? ` \\\n        --qualifier ${fu.qualifier}` : '';
     const qualifierQuery = fu.qualifier ? ` --qualifier ${fu.qualifier}` : '';
+    const corsAssignment = this.generateCorsAssignment(fu.cors);
     const corsFlag = this.generateCorsFlag(fu.cors);
 
     let section = `
-# Function URL: create または update
+${corsAssignment}# Function URL: create または update
 if aws lambda get-function-url-config --function-name ${functionName}${qualifierQuery} &> /dev/null; then
     echo "Updating Function URL config: ${functionName}"
     aws lambda update-function-url-config \\
@@ -352,9 +378,9 @@ echo "Function URL: $(aws lambda get-function-url-config --function-name ${funct
     return section;
   }
 
-  private generateCorsFlag(cors?: NonNullable<LambdaConfig['function_url']>['cors']): string {
+  private buildCorsConfigObject(cors?: NonNullable<LambdaConfig['function_url']>['cors']): Record<string, unknown> | null {
     if (!cors) {
-      return '';
+      return null;
     }
     const corsConfig: Record<string, unknown> = {};
     if (cors.allow_origins) corsConfig.AllowOrigins = cors.allow_origins;
@@ -364,10 +390,42 @@ echo "Function URL: $(aws lambda get-function-url-config --function-name ${funct
     if (cors.allow_credentials !== undefined) corsConfig.AllowCredentials = cors.allow_credentials;
     if (cors.max_age !== undefined) corsConfig.MaxAge = cors.max_age;
 
-    if (Object.keys(corsConfig).length === 0) {
+    return Object.keys(corsConfig).length > 0 ? corsConfig : null;
+  }
+
+  private generateCorsAssignment(cors?: NonNullable<LambdaConfig['function_url']>['cors']): string {
+    const corsConfig = this.buildCorsConfigObject(cors);
+    if (!corsConfig) {
       return '';
     }
-    return ` \\\n        --cors '${JSON.stringify(corsConfig)}'`;
+
+    const json = JSON.stringify(corsConfig);
+    const referencedVars = new Set<string>();
+    for (const match of json.matchAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g)) {
+      referencedVars.add(match[1]);
+    }
+
+    // ${VAR} プレースホルダはスクリプト実行時に bash が展開する
+    const escaped = json
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/`/g, '\\`')
+      .replace(/\$/g, '\\$')
+      .replace(/\\\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, '${__lctl_$1}');
+
+    let section = '';
+    for (const varName of referencedVars) {
+      section += `__lctl_${varName}=$(__lctl_escape "\$${varName}")\n`;
+    }
+    section += `CORS_JSON="${escaped}"\n`;
+    return section;
+  }
+
+  private generateCorsFlag(cors?: NonNullable<LambdaConfig['function_url']>['cors']): string {
+    if (!this.buildCorsConfigObject(cors)) {
+      return '';
+    }
+    return ' \\\n        --cors "$CORS_JSON"';
   }
 
   private generateLogGroupSection(functionName: string, config: LambdaConfig): string {

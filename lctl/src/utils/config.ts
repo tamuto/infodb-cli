@@ -74,7 +74,7 @@ export class ConfigManager {
     private logger: Logger
   ) {}
 
-  async loadConfig(overrides: DeployConfig): Promise<LambdaConfig> {
+  async loadConfig(overrides: DeployConfig, options: { defer?: boolean } = {}): Promise<LambdaConfig> {
     const configDirectory = 'configs';
     const functionsDirectory = 'functions';
     const yamlPath = path.resolve(configDirectory, `${this.functionName}.yaml`);
@@ -85,12 +85,11 @@ export class ConfigManager {
       const yamlContent = await fs.readFile(yamlPath, 'utf-8');
       const parsedYaml = yaml.parse(yamlContent) ?? {};
       this.logger.verbose(`Parsed YAML before substitution:`, parsedYaml);
-      // environment セクションの ${VAR} は生成スクリプトの実行時に bash が展開するため、
-      // ここではプレースホルダのまま保持する
-      const rawEnvironment = parsedYaml.environment;
-      delete parsedYaml.environment;
-      yamlConfig = substituteEnvVariables(parsedYaml);
-      yamlConfig.environment = rawEnvironment;
+      // defer=true (makezip/export) の場合、${VAR} は生成物の実行時まで展開しない。
+      // 同じ資材を複数の環境にデプロイできるよう、role/function_name/environment 等
+      // すべてのフィールドでプレースホルダのまま保持する。
+      // info/delete は AWS を直接呼び出すため、実際の値が必要で即時展開する。
+      yamlConfig = options.defer ? parsedYaml : substituteEnvVariables(parsedYaml);
       this.logger.verbose(`Loaded YAML config from: ${yamlPath}`);
       this.logger.verbose(`YAML config after substitution:`, yamlConfig);
     } catch (error) {
