@@ -262,7 +262,7 @@ ENV_NAME=prod DB_HOST=prod.example.com pnpx @infodb/lctl export my-function
 
 **エクスポートされたスクリプトについて（v0.14.0+）:**
 - スクリプトは bash + AWS CLI のみで動作します（lctl / Node.js は不要）。`jq` があれば出力を整形しますが、無くても動作します。
-- `environment:` セクションの `${VAR}` は **スクリプト実行時** に展開されます。export 時にはシークレット等を設定する必要がなく、実行環境側で設定します（未設定の場合はスクリプトが明確なエラーで停止します）。
+- YAML内の `${VAR}` は `makezip`/`export` の実行時には展開せず、**生成されたスクリプトの実行時**にすべて展開します（`function_name`、`role`、`environment`、`tags`、`permissions`、`vpc`、`function_url`/`cors` など、スクリプトに出力される全フィールドが対象）。これにより同じ ZIP + スクリプトを、実行環境ごとに変数を変えて複数の環境（dev/staging/prod など）へ使い回せます。参照している変数が未設定の場合、スクリプトは冒頭で明確なエラーを出して停止します。
 - スクリプトは実行後も ZIP ファイルを削除しません（deploy コマンド経由の場合は deploy が後始末します）。
 - スクリプトと `<config-name>.zip` を同じディレクトリに配置して実行してください。リージョンは実行環境の AWS CLI 設定（`AWS_DEFAULT_REGION` 等）に従います。
 
@@ -433,8 +433,10 @@ ENV_NAME=prod DB_HOST=prod.example.com pnpx @infodb/lctl deploy my-function
 ```
 
 **変数展開のタイミング（v0.14.0+）:**
-- `environment:` セクションの `${VAR}` → **生成されたスクリプトの実行時** に展開（エクスポートしたスクリプトを別環境で実行する場合は、その環境で変数を設定する）
-- それ以外（`function_name`、`role`、`tags` など）の `${VAR}` → lctl コマンド（makezip / export / deploy）の**実行時**に展開され、スクリプトに埋め込まれる
+- `makezip` / `export` は、スクリプトに出力されるフィールド（`function_name`、`role`、`environment`、`tags`、`permissions`、`vpc`、`function_url` など）の `${VAR}` を一切展開せず、生成スクリプトにプレースホルダのまま埋め込みます。実際の展開は**生成されたスクリプトの実行時**に行われます。
+  - そのため `makezip`/`export`（および両方をまとめて実行する `deploy`）はビルド時にデプロイ先の環境変数を知っている必要がありません。同じ ZIP + スクリプトを、実行時に環境変数を変えるだけで dev/staging/prod など複数環境へデプロイできます。
+  - `deploy` はスクリプト生成直後に同じプロセスの環境変数でスクリプトを実行するため、これまで通り一括で完結します。
+  - `info` / `delete` は AWS を直接呼び出すため、コマンド実行時に `${VAR}` を即時展開します（実行するシェルで対象環境の変数を設定してください）。
 
 ## 環境要件
 

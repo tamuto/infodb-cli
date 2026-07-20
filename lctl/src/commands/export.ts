@@ -16,7 +16,7 @@ export async function exportCommand(functionName: string, options: ExportOptions
 
     // Load configuration
     const configManager = new ConfigManager(functionName, logger);
-    const config = await configManager.loadConfig({});
+    const config = await configManager.loadConfig({}, { defer: true });
 
     logger.verbose('Configuration loaded:', config);
 

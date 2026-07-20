@@ -32,8 +32,10 @@ export async function makeZipCommand(functionName: string, options: MakeZipOptio
     logger.info(`Creating deployment package for Lambda function: ${chalk.cyan(functionName)}`);
 
     // Load configuration
+    // makezip は role/function_name/environment 等の deploy-target 固有の値を使わないため、
+    // これらの ${VAR} 展開を待つ必要はない (defer: true)
     const configManager = new ConfigManager(functionName, logger);
-    const config = await configManager.loadConfig({});
+    const config = await configManager.loadConfig({}, { defer: true });
 
     logger.verbose('Configuration loaded:', config);
 
