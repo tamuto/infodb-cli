@@ -22,6 +22,7 @@ function getEntryFileFromHandler(handler: string): string {
 }
 
 export interface MakeZipOptions {
+  outputDir?: string;
   verbose?: boolean;
 }
 
@@ -42,6 +43,11 @@ export async function makeZipCommand(functionName: string, options: MakeZipOptio
     const functionsDir = config.functionsDirectory || 'functions';
     const vendorDir = path.join(functionsDir, 'vendor');
     const zipFileName = `${functionName}.zip`;
+    const outputDir = path.resolve(options.outputDir || '.');
+    const zipPath = path.join(outputDir, zipFileName);
+
+    // Ensure output directory exists
+    await fs.mkdir(outputDir, { recursive: true });
 
     // Remove existing vendor directory if it exists
     try {
@@ -54,9 +60,9 @@ export async function makeZipCommand(functionName: string, options: MakeZipOptio
 
     // Remove existing ZIP file if it exists
     try {
-      await fs.access(zipFileName);
-      logger.verbose(`Removing existing ZIP file: ${zipFileName}`);
-      await fs.unlink(zipFileName);
+      await fs.access(zipPath);
+      logger.verbose(`Removing existing ZIP file: ${zipPath}`);
+      await fs.unlink(zipPath);
     } catch (error) {
       // File doesn't exist, continue
     }
@@ -73,7 +79,7 @@ export async function makeZipCommand(functionName: string, options: MakeZipOptio
         logger
       );
 
-      await createNodeDeploymentZip(bundledFile, functionsDir, config, zipFileName, logger);
+      await createNodeDeploymentZip(bundledFile, functionsDir, config, zipFileName, outputDir, logger);
     } else {
       // Python Lambda (existing behavior)
       logger.info(`Runtime: ${chalk.cyan(config.runtime)} (Python)`);
@@ -85,10 +91,10 @@ export async function makeZipCommand(functionName: string, options: MakeZipOptio
       }
 
       // Create deployment ZIP
-      await createDeploymentZip(functionsDir, config, zipFileName, logger);
+      await createDeploymentZip(functionsDir, config, zipFileName, outputDir, logger);
     }
 
-    logger.success(`✅ Deployment package created successfully: ${chalk.cyan(zipFileName)}`);
+    logger.success(`✅ Deployment package created successfully: ${chalk.cyan(zipPath)}`);
 
   } catch (error) {
     logger.error(`❌ Failed to create deployment package: ${error instanceof Error ? error.message : error}`);
@@ -212,6 +218,7 @@ async function createNodeDeploymentZip(
   functionsDir: string,
   config: any,
   zipFileName: string,
+  outputDir: string,
   logger: Logger
 ): Promise<void> {
   logger.info('Creating ZIP package for Node.js Lambda...');
@@ -257,8 +264,8 @@ async function createNodeDeploymentZip(
     process.chdir(tempDir);
     await runCommand('zip', ['-r', zipFileName, '.'], logger);
 
-    // Move ZIP to project root
-    await fs.rename(zipFileName, path.join(originalCwd, zipFileName));
+    // Move ZIP to output directory
+    await moveFile(zipFileName, path.join(outputDir, zipFileName));
 
   } finally {
     process.chdir(originalCwd);
@@ -268,7 +275,7 @@ async function createNodeDeploymentZip(
   }
 }
 
-async function createDeploymentZip(functionsDir: string, config: any, zipFileName: string, logger: Logger): Promise<void> {
+async function createDeploymentZip(functionsDir: string, config: any, zipFileName: string, outputDir: string, logger: Logger): Promise<void> {
   logger.info('Creating ZIP package...');
 
   // Change to functions directory
@@ -314,8 +321,8 @@ async function createDeploymentZip(functionsDir: string, config: any, zipFileNam
       await runCommand('zip', ['-r', `../${zipFileName}`, '.'], logger);
       process.chdir('..');
 
-      // Move ZIP to project root
-      await fs.rename(zipFileName, path.join('..', zipFileName));
+      // Move ZIP to output directory
+      await moveFile(zipFileName, path.join(outputDir, zipFileName));
 
       // Clean up temp directory
       await fs.rm(tempDir, { recursive: true, force: true });
@@ -333,6 +340,20 @@ async function createDeploymentZip(functionsDir: string, config: any, zipFileNam
   } finally {
     // Always return to original directory
     process.chdir(originalCwd);
+  }
+}
+
+async function moveFile(src: string, dest: string): Promise<void> {
+  try {
+    await fs.rename(src, dest);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EXDEV') {
+      // Source and destination are on different filesystems; fall back to copy + delete
+      await fs.copyFile(src, dest);
+      await fs.unlink(src);
+    } else {
+      throw error;
+    }
   }
 }
 

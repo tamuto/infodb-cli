@@ -1,10 +1,12 @@
 import chalk from 'chalk';
+import * as path from 'path';
 import { ConfigManager } from '../utils/config';
 import { ScriptGenerator } from '../utils/script-generator';
 import { Logger } from '../utils/logger';
 
 export interface ExportOptions {
   output?: string;
+  outputDir?: string;
   verbose?: boolean;
 }
 
@@ -26,7 +28,7 @@ export async function exportCommand(functionName: string, options: ExportOptions
     const script = scriptGenerator.generateDeployScript(actualFunctionName, config, functionName);
 
     // Save script
-    const outputPath = options.output || `deploy-${functionName}.sh`;
+    const outputPath = options.output || path.join(options.outputDir || '.', `deploy-${functionName}.sh`);
     const scriptPath = await scriptGenerator.saveScript(outputPath, script);
 
     logger.success(`✅ Deploy script exported successfully: ${chalk.cyan(scriptPath)}`);

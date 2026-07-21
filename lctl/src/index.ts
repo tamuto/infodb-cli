@@ -15,7 +15,7 @@ const program = new Command();
 program
   .name('lctl')
   .description('AWS Lambda Control Tool - Simple CLI for managing Lambda functions')
-  .version('0.14.1');
+  .version('0.15.0');
 
 // Deploy command
 program
@@ -46,6 +46,7 @@ program
   .command('makezip')
   .description('Create deployment ZIP package')
   .argument('<function-name>', 'Configuration file name (without .yaml extension)')
+  .option('--output-dir <dir>', 'Output directory for the ZIP package (default: current directory)')
   .option('--verbose', 'Verbose output')
   .action(makeZipCommand);
 
@@ -55,6 +56,7 @@ program
   .description('Export deployment script')
   .argument('<function-name>', 'Configuration file name (without .yaml extension)')
   .option('--output <file>', 'Output script file path')
+  .option('--output-dir <dir>', 'Output directory for the deploy script (default: current directory)')
   .option('--verbose', 'Verbose output')
   .action(exportCommand);
 

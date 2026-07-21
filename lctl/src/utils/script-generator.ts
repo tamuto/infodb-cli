@@ -453,6 +453,7 @@ aws logs put-retention-policy --log-group-name /aws/lambda/${functionName} --ret
 
   async saveScript(outputPath: string, script: string): Promise<string> {
     const scriptPath = path.resolve(outputPath);
+    await fs.mkdir(path.dirname(scriptPath), { recursive: true });
     await fs.writeFile(scriptPath, script, { mode: 0o755 });
     this.logger.verbose(`Deploy script saved: ${scriptPath}`);
     return scriptPath;

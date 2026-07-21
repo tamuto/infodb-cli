@@ -73,6 +73,7 @@ pnpx @infodb/lctl makezip <config-name> [オプション]
 - `config-name`: 設定ファイル名（.yaml拡張子は不要）
 
 **オプション:**
+- `--output-dir <dir>`: ZIPパッケージの出力先ディレクトリ（デフォルト: カレントディレクトリ）
 - `--verbose`: 詳細なログを出力
 
 **機能:**
@@ -83,6 +84,7 @@ pnpx @infodb/lctl makezip <config-name> [オプション]
 **例:**
 ```bash
 pnpx @infodb/lctl makezip my-function --verbose
+pnpx @infodb/lctl makezip my-function --output-dir ./dist
 ```
 
 ### 2. deploy - Lambda関数の完全デプロイ（推奨）
@@ -120,6 +122,7 @@ pnpx @infodb/lctl export <config-name> [オプション]
 
 **オプション:**
 - `--output <file>`: 出力ファイルパス（デフォルト: deploy-{config-name}.sh）
+- `--output-dir <dir>`: スクリプトの出力先ディレクトリ（デフォルト: カレントディレクトリ、`--output`指定時は無視）
 - `--verbose`: 詳細なログを出力
 
 **機能:**
@@ -133,6 +136,10 @@ pnpx @infodb/lctl export my-function
 
 # カスタム出力ファイル
 pnpx @infodb/lctl export my-function --output custom-deploy.sh
+
+# 出力先ディレクトリを指定（makezipと同じディレクトリを指定するとそのままデプロイに使える）
+pnpx @infodb/lctl makezip my-function --output-dir ./dist
+pnpx @infodb/lctl export my-function --output-dir ./dist
 ```
 
 ### 4. delete - Lambda関数の削除
@@ -249,6 +256,7 @@ pnpx @infodb/lctl export <config-name> [オプション]
 
 **オプション:**
 - `--output <file>`: 出力ファイルパス（デフォルト: deploy-{config-name}.sh）
+- `--output-dir <dir>`: スクリプトの出力先ディレクトリ（デフォルト: カレントディレクトリ、`--output`指定時は無視）
 - `--verbose`: 詳細なログを出力
 
 **例:**
