@@ -199,6 +199,11 @@ __lctl_escape() {
     if (config.reserved_concurrency !== undefined) {
       commands += `\n# Set reserved concurrency\n`;
       commands += `aws lambda put-function-concurrency --function-name ${functionName} --reserved-concurrent-executions ${config.reserved_concurrency} | pp\n`;
+    } else {
+      // 未設定なら既存の予約済み同時実行数を解除する（失敗は許容するが、権限不足等の
+      // 実エラーが分かるよう stderr は隠さない）
+      commands += `\n# 予約済み同時実行数: 未設定なので、既存の設定があれば解除\n`;
+      commands += `aws lambda delete-function-concurrency --function-name ${functionName} || true\n`;
     }
 
     // Dead letter queue
@@ -253,10 +258,11 @@ aws lambda wait function-updated --function-name ${functionName}\n`;
         throw new Error(`Permission at index ${index} must specify either 'principal' or 'service'`);
       }
 
-      // Remove existing permission first (ignore error if not exists)
+      // Remove existing permission first. Failure is tolerated (e.g. it doesn't exist yet),
+      // but stderr is shown so real problems (e.g. missing lambda:RemovePermission) are visible.
       section += `aws lambda remove-permission \\
         --function-name ${functionName} \\
-        --statement-id ${statementId} 2>/dev/null || true\n`;
+        --statement-id ${statementId} || true\n`;
 
       section += `aws lambda add-permission \\
         --function-name ${functionName} \\
@@ -304,9 +310,11 @@ aws lambda wait function-updated --function-name ${functionName}\n`;
   private generateFunctionUrlSection(functionName: string, config: LambdaConfig): string {
     const invokeUrlStatementId = 'function-url-public-invoke-url';
     const invokeFunctionStatementId = 'function-url-public-invoke-function';
+    // Failure is tolerated (e.g. it doesn't exist yet), but stderr is shown so real
+    // problems (e.g. missing lambda:RemovePermission) are visible.
     const removeStatement = (id: string) => `aws lambda remove-permission \\
     --function-name ${functionName} \\
-    --statement-id ${id} 2>/dev/null || true`;
+    --statement-id ${id} || true`;
 
     if (!config.function_url) {
       return `

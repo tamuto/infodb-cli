@@ -471,6 +471,92 @@ export AWS_DEFAULT_REGION=us-east-1
 
 3. IAMロールの使用（EC2、Lambda等）
 
+## 必要なIAM権限
+
+`lctl`自体はAWS CLIを呼び出すラッパーなので、実行するユーザー/ロールには以下のIAM権限が必要です。`--action`に何を指定していても、`add-permission`/`remove-permission`の呼び出しに必要なIAMアクションは常に`lambda:AddPermission`/`lambda:RemovePermission`です（`--action`はリソースベースポリシー側で許可する対象を指定するものであり、呼び出し元のIAM権限とは別物です）。
+
+### `deploy` / `export`で生成されるスクリプトの実行に必要な権限
+
+| 権限 | 用途 |
+|---|---|
+| `lambda:GetFunction` | 関数の存在確認、`wait function-updated`、タグ付け時のARN取得 |
+| `lambda:CreateFunction` | 新規関数の作成 |
+| `lambda:UpdateFunctionCode` | 既存関数のコード更新 |
+| `lambda:UpdateFunctionConfiguration` | 設定更新（VPC、デッドレターキュー、エフェメラルストレージを含む） |
+| `lambda:PutFunctionConcurrency` | `reserved_concurrency`設定時 |
+| `lambda:DeleteFunctionConcurrency` | `reserved_concurrency`未設定時、既存の予約済み同時実行数の解除 |
+| `lambda:TagResource` | `tags`設定時 |
+| `lambda:AddPermission` | `permissions`設定、Function URLの公開許可 |
+| `lambda:RemovePermission` | 上記の再デプロイ時のクリーンアップ |
+| `lambda:GetFunctionUrlConfig` | Function URL設定の存在確認・表示 |
+| `lambda:CreateFunctionUrlConfig` | Function URLの新規作成 |
+| `lambda:UpdateFunctionUrlConfig` | Function URLの設定更新 |
+| `lambda:DeleteFunctionUrlConfig` | `function_url`未設定時の既存設定削除 |
+| `logs:DescribeLogGroups` | ロググループの存在確認 |
+| `logs:CreateLogGroup` | ロググループの作成（`auto_create_log_group: true`時） |
+| `logs:PutRetentionPolicy` | ログ保持期間の設定 |
+| `iam:PassRole`（対象: `role`に指定したLambda実行ロールのARN） | 関数の作成・更新時にLambda実行ロールを渡すために必須 |
+
+### `delete`コマンドに必要な権限
+
+| 権限 | 用途 |
+|---|---|
+| `lambda:DeleteFunctionUrlConfig` | Function URL設定の削除 |
+| `lambda:DeleteFunction` | 関数の削除 |
+
+### `info`コマンドに必要な権限
+
+| 権限 | 用途 |
+|---|---|
+| `lambda:GetFunction` | 関数情報の取得 |
+| `lambda:GetFunctionUrlConfig` | Function URL情報の取得 |
+
+### IAMポリシー例
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "lambda:GetFunction",
+        "lambda:CreateFunction",
+        "lambda:UpdateFunctionCode",
+        "lambda:UpdateFunctionConfiguration",
+        "lambda:PutFunctionConcurrency",
+        "lambda:DeleteFunctionConcurrency",
+        "lambda:TagResource",
+        "lambda:AddPermission",
+        "lambda:RemovePermission",
+        "lambda:GetFunctionUrlConfig",
+        "lambda:CreateFunctionUrlConfig",
+        "lambda:UpdateFunctionUrlConfig",
+        "lambda:DeleteFunctionUrlConfig",
+        "lambda:DeleteFunction"
+      ],
+      "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "logs:DescribeLogGroups",
+        "logs:CreateLogGroup",
+        "logs:PutRetentionPolicy"
+      ],
+      "Resource": "arn:aws:logs:REGION:ACCOUNT_ID:log-group:/aws/lambda/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::ACCOUNT_ID:role/lambda-execution-role"
+    }
+  ]
+}
+```
+
+`Resource`はできるだけ絞り込み、対象のLambda関数・ロググループ・実行ロールのARNに限定することを推奨します。
+
 ## トラブルシューティング
 
 ### よくある問題
