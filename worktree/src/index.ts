@@ -10,7 +10,7 @@ const program = new Command();
 program
   .name('@infodb/worktree')
   .description('CLI tool to manage git worktrees and VSCode workspace files')
-  .version('1.4.0');
+  .version('1.4.1');
 
 program
   .command('add')
@@ -58,7 +58,7 @@ program
       const worktreePath = await createWorktree(branchName, options.directory);
 
       // Add to specified workspace
-      const workspaceFile = await addToWorkspace(workspaceName, worktreePath);
+      const workspaceFile = await addToWorkspace(workspaceName, worktreePath, { seedRepoRoot: true });
 
       if (workspaceFile) {
         console.log(`✅ Created worktree '${branchName}' and added to workspace '${path.basename(workspaceFile)}'`);
