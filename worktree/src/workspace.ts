@@ -48,17 +48,14 @@ export function findWorkspaceFiles(): string[] {
   return [...new Set(workspaceFiles)]; // Remove duplicates
 }
 
-function createEmptyWorkspace(currentRepoPath: string): WorkspaceConfig {
+function createEmptyWorkspace(currentRepoPath?: string): WorkspaceConfig {
   // Use absolute path for current repository
-  const repoName = path.basename(currentRepoPath);
-  
+  const folders: WorkspaceFolder[] = currentRepoPath
+    ? [{ name: path.basename(currentRepoPath), path: currentRepoPath }]
+    : [];
+
   return {
-    folders: [
-      {
-        name: repoName,
-        path: currentRepoPath
-      }
-    ],
+    folders,
     settings: {},
     extensions: {
       recommendations: []
@@ -98,7 +95,19 @@ function resolveWorkspaceFile(workspaceFile: string, forCreation: boolean = fals
   return targetWorkspaceFile;
 }
 
-export async function addToWorkspace(workspaceFile: string, worktreePath: string): Promise<string | null> {
+function writeWorkspaceFile(workspacePath: string, workspaceConfig: WorkspaceConfig): void {
+  try {
+    writeFileSync(workspacePath, JSON.stringify(workspaceConfig, null, 2));
+  } catch (error) {
+    throw new Error(`Failed to write workspace file: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+export async function addToWorkspace(
+  workspaceFile: string,
+  worktreePath: string,
+  options: { seedRepoRoot?: boolean } = {}
+): Promise<string | null> {
   // First try to find existing workspace file
   let targetWorkspaceFile = resolveWorkspaceFile(workspaceFile, false);
   let isNewFile = false;
@@ -116,11 +125,16 @@ export async function addToWorkspace(workspaceFile: string, worktreePath: string
   let workspaceConfig: WorkspaceConfig;
   
   if (isNewFile) {
-    // Get current repository path for new workspace
-    const currentRepoPath = execSync('git rev-parse --show-toplevel', { encoding: 'utf8' }).trim();
-    
-    // Create new workspace configuration with current repo
-    workspaceConfig = createEmptyWorkspace(currentRepoPath);
+    if (options.seedRepoRoot) {
+      // Get current repository path for new workspace
+      const currentRepoPath = execSync('git rev-parse --show-toplevel', { encoding: 'utf8' }).trim();
+
+      // Create new workspace configuration with current repo
+      workspaceConfig = createEmptyWorkspace(currentRepoPath);
+    } else {
+      // Only the requested folder should be registered (e.g. --folder-only)
+      workspaceConfig = createEmptyWorkspace();
+    }
   } else {
     // Read existing workspace file
     try {
@@ -149,6 +163,12 @@ export async function addToWorkspace(workspaceFile: string, worktreePath: string
 
   if (existingFolder) {
     console.log(`⚠️  Folder '${folderName}' is already in the workspace`);
+
+    if (isNewFile) {
+      // The workspace file has not been written yet, so persist it anyway
+      writeWorkspaceFile(absoluteWorkspacePath, workspaceConfig);
+    }
+
     return absoluteWorkspacePath;
   }
 
@@ -161,13 +181,8 @@ export async function addToWorkspace(workspaceFile: string, worktreePath: string
   // Sort folders by name
   workspaceConfig.folders.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
-  // Write the updated workspace configuration
-  try {
-    writeFileSync(absoluteWorkspacePath, JSON.stringify(workspaceConfig, null, 2));
-  } catch (error) {
-    throw new Error(`Failed to write workspace file: ${error instanceof Error ? error.message : String(error)}`);
-  }
-  
+  writeWorkspaceFile(absoluteWorkspacePath, workspaceConfig);
+
   return absoluteWorkspacePath;
 }
 
@@ -207,12 +222,7 @@ export async function removeFromWorkspace(workspaceFile: string, worktreePath: s
     return absoluteWorkspacePath;
   }
 
-  // Write the updated workspace configuration
-  try {
-    writeFileSync(absoluteWorkspacePath, JSON.stringify(workspaceConfig, null, 2));
-  } catch (error) {
-    throw new Error(`Failed to write workspace file: ${error instanceof Error ? error.message : String(error)}`);
-  }
-  
+  writeWorkspaceFile(absoluteWorkspacePath, workspaceConfig);
+
   return absoluteWorkspacePath;
 }
