@@ -43,25 +43,40 @@ export async function parsePyProjectToml(tomlPath: string): Promise<PyProjectInf
     const content = await fs.readFile(tomlPath, 'utf-8');
     const data = parseToml(content) as any;
 
-    const info: PyProjectInfo = {};
+    const project = data.project ?? {};
+    const poetry = data.tool?.poetry ?? {};
+    const uv = data.tool?.uv ?? {};
 
-    // Poetry style
-    if (data.tool?.poetry) {
-      const poetry = data.tool.poetry;
-      info.name = poetry.name;
-      info.version = poetry.version;
-      info.dependencies = poetry.dependencies ? Object.keys(poetry.dependencies) : [];
-      info.devDependencies = poetry['dev-dependencies']
-        ? Object.keys(poetry['dev-dependencies'])
-        : [];
+    // PEP 621 [project] takes precedence; Poetry 2.x may define both [project] and [tool.poetry]
+    const info: PyProjectInfo = {
+      name: project.name ?? poetry.name,
+      version: project.version ?? poetry.version,
+      dependencies: [],
+      devDependencies: [],
+    };
+
+    // PEP 621 dependencies (uv, Poetry 2.x, hatch, etc.)
+    info.dependencies!.push(...asStringArray(project.dependencies));
+    // Poetry 1.x style: table keyed by package name
+    info.dependencies!.push(...tableKeys(poetry.dependencies));
+
+    // PEP 621 optional dependencies "dev" extra
+    info.devDependencies!.push(...asStringArray(project['optional-dependencies']?.dev));
+    // PEP 735 dependency groups (uv's `uv add --dev` / `--group`)
+    const groups = data['dependency-groups'];
+    if (groups && typeof groups === 'object') {
+      for (const groupName of Object.keys(groups)) {
+        info.devDependencies!.push(...resolveDependencyGroup(groups, groupName, new Set()));
+      }
     }
-    // PEP 621 style (modern Python packaging)
-    else if (data.project) {
-      const project = data.project;
-      info.name = project.name;
-      info.version = project.version;
-      info.dependencies = project.dependencies || [];
-      info.devDependencies = project['optional-dependencies']?.dev || [];
+    // Legacy uv dev dependencies
+    info.devDependencies!.push(...asStringArray(uv['dev-dependencies']));
+    // Poetry dev dependencies (legacy and group style)
+    info.devDependencies!.push(...tableKeys(poetry['dev-dependencies']));
+    if (poetry.group && typeof poetry.group === 'object') {
+      for (const group of Object.values<any>(poetry.group)) {
+        info.devDependencies!.push(...tableKeys(group?.dependencies));
+      }
     }
 
     return info;
@@ -69,6 +84,48 @@ export async function parsePyProjectToml(tomlPath: string): Promise<PyProjectInf
     logger.error(`Failed to read pyproject.toml at ${tomlPath}: ${error}`);
     return null;
   }
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+}
+
+function tableKeys(value: unknown): string[] {
+  return value && typeof value === 'object' && !Array.isArray(value) ? Object.keys(value) : [];
+}
+
+/**
+ * Resolve a PEP 735 dependency group, expanding {include-group = "..."} entries
+ */
+function resolveDependencyGroup(
+  groups: Record<string, unknown>,
+  groupName: string,
+  seen: Set<string>,
+): string[] {
+  if (seen.has(groupName)) return [];
+  seen.add(groupName);
+
+  const entries = groups[groupName];
+  if (!Array.isArray(entries)) return [];
+
+  const deps: string[] = [];
+  for (const entry of entries) {
+    if (typeof entry === 'string') {
+      deps.push(entry);
+    } else if (entry && typeof entry['include-group'] === 'string') {
+      deps.push(...resolveDependencyGroup(groups, entry['include-group'], seen));
+    }
+  }
+  return deps;
+}
+
+/**
+ * Split a PEP 508 requirement (e.g. "requests[socks]>=2.28; python_version>'3.8'") into name and spec
+ */
+function parseRequirement(dep: string): { name: string; spec: string } | null {
+  const match = dep.trim().match(/^([a-zA-Z0-9][a-zA-Z0-9-_.]*)(.*)$/);
+  if (!match || match[1].toLowerCase() === 'python') return null;
+  return { name: match[1], spec: match[2].trim() };
 }
 
 /**
@@ -151,6 +208,19 @@ function buildCommandPrefix(env: EnvironmentInfo): string {
   }
 }
 
+/**
+ * Build a pip command for the detected environment.
+ * uv-managed venvs don't ship pip, so `uv run pip` would fall back to the system pip;
+ * use `uv pip` which targets the project's .venv instead.
+ */
+function buildPipCommand(env: EnvironmentInfo, args: string): string {
+  if (env.type === 'uv') {
+    return `uv pip ${args}`;
+  }
+  const cmdPrefix = buildCommandPrefix(env);
+  return cmdPrefix ? `${cmdPrefix} pip ${args}` : `pip ${args}`;
+}
+
 async function fileExists(filePath: string): Promise<boolean> {
   try {
     await fs.access(filePath);
@@ -171,31 +241,11 @@ export async function getDependencies(
 
   const deps = new Map<string, string>();
 
-  // Parse dependencies
-  if (info.dependencies) {
-    for (const dep of info.dependencies) {
-      // Skip python itself
-      if (dep.toLowerCase() === 'python') continue;
-
-      // Parse package name and version from strings like "requests>=2.28.0"
-      const match = dep.match(/^([a-zA-Z0-9-_.]+)(.*)$/);
-      if (match) {
-        const name = match[1];
-        const version = match[2] || '';
-        deps.set(name, version);
-      }
-    }
-  }
-
-  // Add dev dependencies if requested
-  if (includeDev && info.devDependencies) {
-    for (const dep of info.devDependencies) {
-      const match = dep.match(/^([a-zA-Z0-9-_.]+)(.*)$/);
-      if (match) {
-        const name = match[1];
-        const version = match[2] || '';
-        deps.set(name, version);
-      }
+  const entries = [...(info.dependencies ?? []), ...(includeDev ? info.devDependencies ?? [] : [])];
+  for (const dep of entries) {
+    const req = parseRequirement(dep);
+    if (req) {
+      deps.set(req.name, req.spec);
     }
   }
 
@@ -215,12 +265,9 @@ export async function getAllInstalledPackages(
 
     // Detect the Python environment
     const env = await detectPythonEnvironment(projectRoot);
-    const cmdPrefix = buildCommandPrefix(env);
 
     // Use pip list to get all installed packages
-    const pipCommand = cmdPrefix
-      ? `${cmdPrefix} pip list --format=json`
-      : `pip list --format=json`;
+    const pipCommand = buildPipCommand(env, 'list --format=json');
 
     const { stdout } = await execAsync(pipCommand, { cwd: projectRoot });
     const packages = JSON.parse(stdout) as Array<{ name: string; version: string }>;
@@ -256,12 +303,9 @@ export async function buildPythonDependencyGraph(
 
     // Detect the Python environment
     const env = await detectPythonEnvironment(projectRoot);
-    const cmdPrefix = buildCommandPrefix(env);
 
     // Get all installed packages
-    const pipListCommand = cmdPrefix
-      ? `${cmdPrefix} pip list --format=json`
-      : `pip list --format=json`;
+    const pipListCommand = buildPipCommand(env, 'list --format=json');
 
     const { stdout: listOutput } = await execAsync(pipListCommand, { cwd: projectRoot });
     const packages = JSON.parse(listOutput) as Array<{ name: string; version: string }>;
@@ -274,9 +318,7 @@ export async function buildPythonDependencyGraph(
     const packageNames = packages.map(p => p.name);
 
     // Use pip show to get dependency information for all packages at once
-    const pipShowCommand = cmdPrefix
-      ? `${cmdPrefix} pip show ${packageNames.join(' ')}`
-      : `pip show ${packageNames.join(' ')}`;
+    const pipShowCommand = buildPipCommand(env, `show ${packageNames.join(' ')}`);
 
     const { stdout: showOutput } = await execAsync(pipShowCommand, { 
       cwd: projectRoot,
@@ -349,13 +391,9 @@ export async function buildPythonDependencyGraph(
       const directDeps: string[] = [];
       if (pyprojectInfo.dependencies) {
         for (const dep of pyprojectInfo.dependencies) {
-          // Skip python itself
-          if (dep.toLowerCase() === 'python') continue;
-          
-          // Parse package name from strings like "requests>=2.28.0"
-          const match = dep.match(/^([a-zA-Z0-9-_.]+)(.*)$/);
-          if (match) {
-            directDeps.push(match[1]);
+          const req = parseRequirement(dep);
+          if (req) {
+            directDeps.push(req.name);
           }
         }
       }
