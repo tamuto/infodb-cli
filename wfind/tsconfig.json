@@ -11,8 +11,6 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
     "types": ["node"],
     "noImplicitAny": true,
     "noImplicitReturns": true,
