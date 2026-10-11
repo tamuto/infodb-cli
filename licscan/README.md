@@ -199,8 +199,10 @@ Copyright (c) 2011 TJ Holowaychuk <tj@vision-media.ca>
 **Note:** The tool scans packages defined in package.json and **all their transitive dependencies**. For example, if package.json defines `react`, the output will include `react`, `loose-envify` (dependency of react), `js-tokens` (dependency of loose-envify), etc.
 
 ### For Python packages (pyproject.toml):
-1. Reads `pyproject.toml` (supports both Poetry and PEP 621 formats)
+1. Reads `pyproject.toml` (supports PEP 621 `[project]` used by uv / Poetry 2.x, and Poetry 1.x `[tool.poetry]`)
 2. Extracts the packages defined in dependencies (entry points)
+   - Runtime: `[project].dependencies`, `[tool.poetry.dependencies]`
+   - Dev (`--include-dev`): `[dependency-groups]` (PEP 735, all groups), `[tool.uv].dev-dependencies`, `[project.optional-dependencies].dev`, `[tool.poetry.dev-dependencies]`, `[tool.poetry.group.*.dependencies]`
 3. **Detects Python environment**:
    - Checks for `uv.lock` (uv projects)
    - Checks for `poetry.lock` (Poetry projects)
@@ -211,7 +213,7 @@ Copyright (c) 2011 TJ Holowaychuk <tj@vision-media.ca>
 5. Extracts all packages reachable from the defined dependencies (includes **transitive dependencies**)
 6. For each package, attempts to locate and read LICENSE files using Python's `importlib.metadata`
 7. Calculates dependency paths from root project to each package
-8. Uses appropriate command prefix (`uv run`, `poetry run`, or system)
+8. Uses the appropriate command for the environment (`uv pip`, `uv run`, `poetry run`, or system)
 9. Compiles all information with dependency tracking into structured output
 
 **Note:** The tool scans packages defined in pyproject.toml and **all their transitive dependencies**. For example, if pyproject.toml defines `graphql-py`, the output will include `graphql-py` and `ply` (dependency of graphql-py).
@@ -270,7 +272,7 @@ licscan/
 
 - For Python packages, packages must be installed in the detected environment (venv, Poetry, uv, or system)
 - Python environment detection automatically supports:
-  - **uv projects**: Detects `uv.lock` and uses `uv run pip show`
+  - **uv projects**: Detects `uv.lock` and uses `uv pip show` (uv venvs don't include pip)
   - **Poetry projects**: Detects `poetry.lock` and uses `poetry run pip show`
   - **venv environments**: Detects `VIRTUAL_ENV` or common venv directories
   - **System Python**: Falls back when no virtual environment is detected
